@@ -47,6 +47,8 @@ backup/
 build/
 dist/
 *.egg-info/
+*.tar.gz
+*.zip
 
 # Test coverage
 .coverage
