@@ -68,9 +68,8 @@ class ModelRouter:
 
         budget_monthly = self.config.budget.get('monthly_usd', 0)
         logger.info(
-            "ModelRouter inicializado",
-            providers=list(providers.keys()),
-            budget_monthly=budget_monthly
+            f"ModelRouter inicializado - Providers: {list(providers.keys())}, "
+            f"Budget: ${budget_monthly}/month"
         )
     
     def route(

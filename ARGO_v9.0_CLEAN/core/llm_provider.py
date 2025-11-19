@@ -157,10 +157,9 @@ class OpenAIProvider(BaseProvider):
                 }
             
             logger.debug(
-                f"OpenAI response",
-                model=model,
-                tokens=usage.get('total_tokens', 0),
-                latency_ms=round(latency_ms, 2)
+                f"OpenAI response - Model: {model}, "
+                f"Tokens: {usage.get('total_tokens', 0)}, "
+                f"Latency: {round(latency_ms, 2)}ms"
             )
             
             return LLMResponse(
@@ -264,10 +263,9 @@ class AnthropicProvider(BaseProvider):
                 }
             
             logger.debug(
-                f"Anthropic response",
-                model=model,
-                tokens=usage.get('total_tokens', 0),
-                latency_ms=round(latency_ms, 2)
+                f"Anthropic response - Model: {model}, "
+                f"Tokens: {usage.get('total_tokens', 0)}, "
+                f"Latency: {round(latency_ms, 2)}ms"
             )
             
             return LLMResponse(
