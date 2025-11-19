@@ -114,12 +114,62 @@ with st.sidebar:
     st.title("ARGO")
     st.caption(config.version_display)
     st.divider()
-    
+
+    # Project selector and creator
+    st.subheader("Projects")
+
+    # Get all projects
+    all_projects = unified_db.list_projects()
+    project_names = [p['name'] for p in all_projects]
+
+    # Project selector
+    selected_project_name = st.selectbox(
+        "Select Project",
+        project_names,
+        index=project_names.index(project['name']) if project['name'] in project_names else 0
+    )
+
+    # If selection changed, update session state
+    if selected_project_name != project['name']:
+        # Reinitialize with new project
+        st.session_state.argo = initialize_argo(project_name=selected_project_name)
+        st.rerun()
+
+    # New project creator
+    with st.expander("➕ Create New Project"):
+        with st.form("new_project_form"):
+            new_project_name = st.text_input("Project Name", placeholder="My Project")
+            new_project_type = st.selectbox(
+                "Project Type",
+                ["standard", "construction", "it", "research"]
+            )
+            new_project_desc = st.text_area("Description (optional)", placeholder="Project description")
+
+            submit_button = st.form_submit_button("Create Project")
+
+            if submit_button:
+                if new_project_name:
+                    try:
+                        # Create project
+                        unified_db.create_project(
+                            name=new_project_name,
+                            project_type=new_project_type,
+                            description=new_project_desc
+                        )
+                        st.success(f"Project '{new_project_name}' created!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error creating project: {e}")
+                else:
+                    st.warning("Please enter a project name")
+
+    st.divider()
+
     # Project info
-    st.subheader("Current Project")
-    st.write(f"**Name:** {project['name']}")
-    st.write(f"**Type:** {project['project_type']}")
-    st.write(f"**Status:** {project['status']}")
+    st.caption("**Current Project Details:**")
+    st.write(f"📁 {project['name']}")
+    st.write(f"Type: {project['project_type']}")
+    st.write(f"Status: {project['status']}")
     st.divider()
     
     # File upload
