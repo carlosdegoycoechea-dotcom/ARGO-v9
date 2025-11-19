@@ -318,7 +318,60 @@ class UnifiedDatabase:
             
             logger.info(f"Proyecto creado: {name} [project_id={project_id}, type={project_type}]")
             return project_id
-    
+
+    def update_project(
+        self,
+        project_id: str,
+        name: str = None,
+        description: str = None,
+        status: str = None,
+        last_accessed: str = None,
+        metadata: Dict = None
+    ):
+        """
+        Actualiza información de un proyecto
+
+        Args:
+            project_id: ID del proyecto
+            name: Nuevo nombre (opcional)
+            description: Nueva descripción (opcional)
+            status: Nuevo status (opcional)
+            last_accessed: Timestamp de último acceso (opcional)
+            metadata: Metadata adicional (opcional)
+        """
+        with self._get_connection() as conn:
+            updates = []
+            params = []
+
+            if name is not None:
+                updates.append("name = ?")
+                params.append(name)
+
+            if description is not None:
+                updates.append("description = ?")
+                params.append(description)
+
+            if status is not None:
+                updates.append("status = ?")
+                params.append(status)
+
+            if last_accessed is not None:
+                updates.append("last_accessed = ?")
+                params.append(last_accessed)
+
+            if metadata is not None:
+                updates.append("metadata_json = ?")
+                params.append(json.dumps(metadata))
+
+            # Always update updated_at
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+
+            if updates:
+                params.append(project_id)
+                query = f"UPDATE projects SET {', '.join(updates)} WHERE id = ?"
+                conn.execute(query, params)
+                logger.debug(f"Proyecto actualizado [project_id={project_id}]")
+
     def get_project(self, name: str = None, project_id: str = None) -> Optional[Dict]:
         """
         Obtiene información de un proyecto por nombre o ID (F1 Architecture)
