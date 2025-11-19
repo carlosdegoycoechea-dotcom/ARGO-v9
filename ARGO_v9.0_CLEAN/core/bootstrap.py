@@ -330,14 +330,22 @@ class ARGOBootstrap:
             RAG engine instance
         """
         from core.rag_engine import UnifiedRAGEngine
-        
-        # Get embeddings
+
+        # Get embeddings with custom HTTP clients (fix for proxies error)
         from langchain_openai import OpenAIEmbeddings
+        import httpx
+
         embeddings_model = self.config.get("apis.openai.models.embeddings")
-        
+
+        # Create custom HTTP clients (sync + async) without proxy configuration
+        sync_client = httpx.Client(timeout=60.0, follow_redirects=True)
+        async_client = httpx.AsyncClient(timeout=60.0, follow_redirects=True)
+
         embeddings = OpenAIEmbeddings(
             model=embeddings_model,
-            api_key=os.getenv("OPENAI_API_KEY")
+            api_key=os.getenv("OPENAI_API_KEY"),
+            http_client=sync_client,
+            http_async_client=async_client
         )
         
         rag_engine = UnifiedRAGEngine(
