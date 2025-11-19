@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.bootstrap import initialize_argo
 from core.config import get_config
 from core.logger import get_logger
+from core.conversation_summarizer import ConversationSummarizer
 from tools.extractors import extract_and_chunk, get_file_info
 
 logger = get_logger("UI")
@@ -270,6 +271,19 @@ rag_engine = argo['project_components']['rag_engine']
 vectorstore = argo['project_components']['vectorstore']
 unified_db = argo['unified_db']
 project = argo['project']
+
+# Initialize conversation summarizer (once per session)
+if 'conversation_summarizer' not in st.session_state:
+    from openai import OpenAI
+    llm = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    st.session_state.conversation_summarizer = ConversationSummarizer(
+        llm=llm,
+        threshold=15,  # Trigger summarization after 15 messages
+        max_summary_tokens=500
+    )
+    logger.info("ConversationSummarizer initialized")
+
+conversation_summarizer = st.session_state.conversation_summarizer
 
 # ====================
 # SIDEBAR
@@ -595,6 +609,33 @@ with st.sidebar:
         else:
             override_provider = None
 
+        st.divider()
+        st.caption("Conversation Management")
+
+        # Display current message count
+        current_msg_count = len(st.session_state.messages)
+        needs_compression = conversation_summarizer.needs_summary(current_msg_count)
+
+        st.metric(
+            "Messages in History",
+            current_msg_count,
+            delta="Needs compression" if needs_compression else "Normal",
+            delta_color="normal" if not needs_compression else "off"
+        )
+
+        summarization_threshold = st.slider(
+            "Auto-compress after N messages",
+            min_value=10,
+            max_value=30,
+            value=15,
+            help="Automatically summarize conversations longer than this to prevent token limits"
+        )
+
+        # Update threshold if changed
+        if conversation_summarizer.threshold != summarization_threshold:
+            conversation_summarizer.threshold = summarization_threshold
+            logger.info(f"Summarization threshold updated to {summarization_threshold}")
+
         st.session_state.search_settings = {
             'use_hyde': use_hyde,
             'use_reranker': use_reranker,
@@ -765,10 +806,34 @@ Guidelines:
 - Use proper business terminology
 - Do not use emojis in your responses"""
 
-                    messages = [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
-                    ]
+                    # Prepare conversation history with automatic summarization
+                    # This prevents token limit errors in long conversations
+                    conversation_history = st.session_state.messages[:-1]  # Exclude current user message
+
+                    if conversation_summarizer.needs_summary(len(conversation_history)):
+                        # Compress long conversation history
+                        summary, compressed_history = conversation_summarizer.compress_history(
+                            messages=conversation_history,
+                            keep_recent=6  # Keep last 6 messages intact
+                        )
+                        history_for_llm = compressed_history
+                        logger.info(f"Conversation compressed: {len(conversation_history)} → {len(compressed_history)} messages")
+
+                        # Show compression notification to user
+                        compression_stats = conversation_summarizer.get_compression_stats(
+                            conversation_history,
+                            compressed_history
+                        )
+                        st.info(f"Long conversation detected. Compressed {compression_stats['original_message_count']} messages "
+                                f"to {compression_stats['compressed_message_count']} "
+                                f"(saved {compression_stats['compression_ratio']:.0f}% tokens)")
+                    else:
+                        history_for_llm = conversation_history
+
+                    # Build messages array: system prompt + conversation history + current question
+                    messages = [{"role": "system", "content": system_prompt}]
+                    messages.extend(history_for_llm)
+                    messages.append({"role": "user", "content": prompt})
 
                     # Get response from router
                     response = model_router.run(
