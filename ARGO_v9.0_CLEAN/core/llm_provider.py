@@ -123,19 +123,26 @@ class OpenAIProvider(BaseProvider):
     ) -> LLMResponse:
         """Genera respuesta con OpenAI"""
         self._ensure_client()
-        
+
         start_time = time.time()
-        
+
         try:
             # Preparar mensajes
             formatted_messages = self._format_messages(messages, system_prompt)
-            
-            # Crear instancia del modelo
+
+            # Create custom HTTP clients to avoid proxies error
+            import httpx
+            sync_client = httpx.Client(timeout=60.0, follow_redirects=True)
+            async_client = httpx.AsyncClient(timeout=60.0, follow_redirects=True)
+
+            # Crear instancia del modelo con clientes personalizados
             llm = self._client(
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                openai_api_key=self.api_key
+                openai_api_key=self.api_key,
+                http_client=sync_client,
+                http_async_client=async_client
             )
             
             # Generar respuesta

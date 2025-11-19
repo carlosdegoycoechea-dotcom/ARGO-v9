@@ -29,7 +29,23 @@ def render_analytics_panel(unified_db, config):
     
     # Get monthly summary
     monthly = unified_db.get_monthly_summary()
-    
+
+    # Handle None values in monthly summary
+    if monthly:
+        monthly['total_cost'] = monthly.get('total_cost') or 0.0
+        monthly['total_tokens'] = monthly.get('total_tokens') or 0
+        monthly['total_requests'] = monthly.get('total_requests') or 0
+        monthly['daily_avg_cost'] = monthly.get('daily_avg_cost') or 0.0
+        monthly['daily_avg_tokens'] = monthly.get('daily_avg_tokens') or 0
+    else:
+        monthly = {
+            'total_cost': 0.0,
+            'total_tokens': 0,
+            'total_requests': 0,
+            'daily_avg_cost': 0.0,
+            'daily_avg_tokens': 0
+        }
+
     # Budget alert
     budget_alert = unified_db.check_budget_alert(monthly_budget)
     
