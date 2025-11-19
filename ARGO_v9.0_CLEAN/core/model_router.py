@@ -133,11 +133,8 @@ class ModelRouter:
         # 5. Generar respuesta
         try:
             logger.debug(
-                "Routing request",
-                provider=provider_name,
-                model=model_name,
-                task_type=task_type,
-                project_type=project_type
+                f"Routing request [provider={provider_name}, model={model_name}, "
+                f"task_type={task_type}, project_type={project_type}]"
             )
             
             response = provider.generate(
@@ -166,10 +163,7 @@ class ModelRouter:
             
         except Exception as e:
             logger.error(
-                f"Error en route",
-                provider=provider_name,
-                model=model_name,
-                error=str(e)
+                f"Error en route [provider={provider_name}, model={model_name}]: {str(e)}"
             )
             
             # Intentar fallback si está configurado
@@ -263,15 +257,12 @@ class ModelRouter:
             )
             
             logger.debug(
-                "Usage tracked",
-                tokens=total_tokens,
-                cost_usd=round(cost, 4),
-                provider=response.provider,
-                model=response.model
+                f"Usage tracked [tokens={total_tokens}, cost=${round(cost, 4)}, "
+                f"provider={response.provider}, model={response.model}]"
             )
             
         except Exception as e:
-            logger.error(f"Error tracking usage", error=str(e))
+            logger.error(f"Error tracking usage: {str(e)}")
     
     def _estimate_cost(
         self,
@@ -325,7 +316,7 @@ class ModelRouter:
                     )
                     
         except Exception as e:
-            logger.error(f"Error checking budget", error=str(e))
+            logger.error(f"Error checking budget: {str(e)}")
     
     def _fallback_route(
         self,
@@ -352,10 +343,7 @@ class ModelRouter:
         fallback_model = provider.default_model
         
         logger.info(
-            f"Fallback activado",
-            from_provider=failed_provider,
-            to_provider=fallback_provider,
-            model=fallback_model
+            f"Fallback activado [from={failed_provider} to={fallback_provider}, model={fallback_model}]"
         )
         
         return provider.generate(
@@ -394,7 +382,7 @@ class ModelRouter:
             return stats
             
         except Exception as e:
-            logger.error(f"Error getting usage stats", error=str(e))
+            logger.error(f"Error getting usage stats: {str(e)}")
             return {}
 
 

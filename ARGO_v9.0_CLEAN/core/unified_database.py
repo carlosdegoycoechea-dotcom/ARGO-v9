@@ -316,7 +316,7 @@ class UnifiedDatabase:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (project_id, name, base_path, description, project_type, json.dumps(metadata or {})))
             
-            logger.info(f"Proyecto creado: {name}", project_id=project_id, project_type=project_type)
+            logger.info(f"Proyecto creado: {name} [project_id={project_id}, type={project_type}]")
             return project_id
     
     def get_project(self, name: str = None, project_id: str = None) -> Optional[Dict]:
@@ -400,7 +400,7 @@ class UnifiedDatabase:
             """, (project_id, filename, file_path, file_type, file_hash, file_size, 
                   chunk_count, json.dumps(metadata or {})))
             
-            logger.debug(f"Archivo registrado: {filename}", project_id=project_id)
+            logger.debug(f"Archivo registrado: {filename} [project_id={project_id}]")
     
     def get_project_files(self, project_id: str) -> List[Dict]:
         """Lista archivos de un proyecto (F1 Architecture)"""
@@ -462,7 +462,7 @@ class UnifiedDatabase:
                     msg.get('tokens_out', 0)
                 ))
             
-            logger.debug(f"Conversación guardada", session_id=session_id, messages=len(messages))
+            logger.debug(f"Conversación guardada [session_id={session_id}, messages={len(messages)}]")
     
     def load_conversation(self, project_id: str, session_id: str) -> Optional[List[Dict]]:
         """Carga una conversación (F1 Architecture compatible)"""
@@ -530,7 +530,7 @@ class UnifiedDatabase:
             """, (project_id, analysis_type, query, json.dumps(results), 
                   confidence, model_used, json.dumps(metadata or {})))
             
-            logger.debug(f"Análisis guardado", type=analysis_type, confidence=confidence)
+            logger.debug(f"Análisis guardado [type={analysis_type}, confidence={confidence}]")
     
     def get_recent_analyses(self, project_id: str, analysis_type: str = None, limit: int = 10) -> List[Dict]:
         """Obtiene análisis recientes"""
@@ -646,11 +646,8 @@ class UnifiedDatabase:
             ))
             
             logger.debug(
-                f"API usage recorded",
-                provider=provider,
-                model=model,
-                tokens=total_tokens,
-                cost=round(cost_estimated, 4)
+                f"API usage recorded [provider={provider}, model={model}, "
+                f"tokens={total_tokens}, cost=${round(cost_estimated, 4)}]"
             )
     
     def get_monthly_usage(self, year: int = None, month: int = None) -> Dict:
