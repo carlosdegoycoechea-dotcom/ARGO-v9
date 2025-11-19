@@ -170,8 +170,7 @@ class ARGOBootstrap:
         
         lib_manager = LibraryManager(
             db_manager=self.unified_db,
-            base_path=base_path,
-            config=self.config
+            base_path=base_path
         )
         
         logger.debug(f"Library path: {lib_manager.library_path}")
