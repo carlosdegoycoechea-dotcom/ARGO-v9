@@ -563,6 +563,23 @@ with st.sidebar:
         include_library = st.checkbox("Include Knowledge Library", value=True)
 
         st.divider()
+        st.caption("Web Search")
+        enable_web_search = st.checkbox(
+            "Enable Web Search",
+            value=True,
+            help="Automatically search web for current information"
+        )
+
+        if enable_web_search:
+            web_provider = st.selectbox(
+                "Search Provider",
+                ["duckduckgo", "serper", "brave", "tavily"],
+                help="DuckDuckGo is free (no API key). Others need API keys in .env"
+            )
+        else:
+            web_provider = "duckduckgo"
+
+        st.divider()
         st.caption("Model Selection")
         model_preference = st.radio(
             "LLM Provider",
@@ -582,7 +599,9 @@ with st.sidebar:
             'use_hyde': use_hyde,
             'use_reranker': use_reranker,
             'include_library': include_library,
-            'override_provider': override_provider
+            'override_provider': override_provider,
+            'enable_web_search': enable_web_search,
+            'web_provider': web_provider
         }
 
     st.divider()
@@ -687,6 +706,24 @@ with tab1:
                     # Get search settings
                     search_settings = st.session_state.get('search_settings', {})
 
+                    # Web search (if enabled and query triggers it)
+                    web_context = ""
+                    if search_settings.get('enable_web_search', False):
+                        from core.web_search import WebSearchEngine, should_use_web_search
+
+                        if should_use_web_search(prompt):
+                            try:
+                                web_engine = WebSearchEngine(
+                                    provider=search_settings.get('web_provider', 'duckduckgo')
+                                )
+                                web_results = web_engine.search(prompt, count=3)
+
+                                if web_results:
+                                    web_context = web_engine.format_results_for_context(web_results)
+                                    st.info(f"Web search performed ({len(web_results)} results)")
+                            except Exception as e:
+                                logger.warning(f"Web search failed: {e}")
+
                     # Search RAG
                     results, search_metadata = rag_engine.search(
                         query=prompt,
@@ -705,8 +742,13 @@ with tab1:
                         for r in results
                     ]
 
-                    # Format context
-                    context = rag_engine.format_context(results)
+                    # Format context (combine RAG + Web)
+                    rag_context = rag_engine.format_context(results)
+
+                    if web_context:
+                        context = f"{rag_context}\n\n{web_context}"
+                    else:
+                        context = rag_context
 
                     # Build system prompt
                     system_prompt = f"""You are ARGO, an enterprise project management assistant.
