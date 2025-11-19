@@ -287,9 +287,14 @@ class ARGOBootstrap:
 
         embeddings_model = self.config.get("apis.openai.models.embeddings", "text-embedding-3-small")
 
-        # Create custom HTTP client without proxy configuration
-        # This fixes the "proxies" parameter error in corporate/proxy environments
-        http_client = httpx.Client(
+        # Create custom HTTP clients (BOTH sync + async) without proxy configuration
+        # This fixes the "proxies" parameter error in both Client and AsyncClient
+        sync_client = httpx.Client(
+            timeout=60.0,
+            follow_redirects=True
+        )
+
+        async_client = httpx.AsyncClient(
             timeout=60.0,
             follow_redirects=True
         )
@@ -297,7 +302,8 @@ class ARGOBootstrap:
         embeddings = OpenAIEmbeddings(
             model=embeddings_model,
             api_key=os.getenv("OPENAI_API_KEY"),
-            http_client=http_client
+            http_client=sync_client,
+            http_async_client=async_client
         )
         
         vectors_path = base_path / "vectors"
