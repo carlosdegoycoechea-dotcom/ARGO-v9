@@ -147,10 +147,10 @@ class ARGOBootstrap:
             anthropic_api_key=anthropic_key,
             config=self.config
         )
-        
+
         # Create router
         router = ModelRouter(
-            provider_manager=provider_manager,
+            providers=provider_manager.get_providers(),
             db_manager=self.unified_db,
             config=self.config
         )

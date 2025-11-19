@@ -302,9 +302,72 @@ def create_provider(provider_name: str, api_key: str, default_model: str) -> Bas
         "openai": OpenAIProvider,
         "anthropic": AnthropicProvider,
     }
-    
+
     provider_class = providers.get(provider_name.lower())
     if not provider_class:
         raise ValueError(f"Proveedor desconocido: {provider_name}")
-    
+
     return provider_class(api_key=api_key, default_model=default_model)
+
+
+class LLMProviderManager:
+    """
+    Gestor de proveedores LLM
+    Inicializa y gestiona múltiples proveedores (OpenAI, Anthropic, etc.)
+    """
+
+    def __init__(
+        self,
+        openai_api_key: str,
+        anthropic_api_key: Optional[str] = None,
+        config: Any = None
+    ):
+        """
+        Inicializa el gestor de proveedores
+
+        Args:
+            openai_api_key: API key de OpenAI (requerida)
+            anthropic_api_key: API key de Anthropic (opcional)
+            config: Objeto de configuración
+        """
+        self.config = config
+        self.providers = {}
+
+        # Obtener modelos por defecto de la configuración
+        default_openai_model = "gpt-4o-mini"
+        default_anthropic_model = "claude-3-5-sonnet-20241022"
+
+        if config:
+            default_openai_model = config.get("llm.providers.openai.default_model", default_openai_model)
+            default_anthropic_model = config.get("llm.providers.anthropic.default_model", default_anthropic_model)
+
+        # Crear proveedor OpenAI (requerido)
+        self.providers["openai"] = create_provider(
+            "openai",
+            openai_api_key,
+            default_openai_model
+        )
+        logger.info(f"Provider OpenAI initialized (model: {default_openai_model})")
+
+        # Crear proveedor Anthropic (opcional)
+        if anthropic_api_key:
+            self.providers["anthropic"] = create_provider(
+                "anthropic",
+                anthropic_api_key,
+                default_anthropic_model
+            )
+            logger.info(f"Provider Anthropic initialized (model: {default_anthropic_model})")
+        else:
+            logger.info("Provider Anthropic not initialized (no API key)")
+
+    def get_providers(self) -> Dict[str, BaseProvider]:
+        """Obtiene diccionario de todos los proveedores disponibles"""
+        return self.providers
+
+    def get_provider(self, provider_name: str) -> Optional[BaseProvider]:
+        """Obtiene un proveedor específico por nombre"""
+        return self.providers.get(provider_name.lower())
+
+    def has_provider(self, provider_name: str) -> bool:
+        """Verifica si un proveedor está disponible"""
+        return provider_name.lower() in self.providers

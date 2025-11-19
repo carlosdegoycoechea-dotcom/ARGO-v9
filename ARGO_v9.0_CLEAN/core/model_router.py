@@ -49,17 +49,28 @@ class ModelRouter:
     def __init__(
         self,
         providers: Dict[str, BaseProvider],
-        config: RouterConfig,
+        config: Any,  # Can be RouterConfig or generic config object
         db_manager=None  # UnifiedDatabase instance
     ):
         self.providers = providers
-        self.config = config
         self.db = db_manager
-        
+
+        # Handle both RouterConfig and generic config
+        if isinstance(config, RouterConfig):
+            self.config = config
+        else:
+            # Convert generic config to RouterConfig
+            self.config = RouterConfig(
+                pricing=config.get("budget.pricing", {}),
+                budget=config.get("budget", {}),
+                defaults=config.get("model_router.task_routing", {})
+            )
+
+        budget_monthly = self.config.budget.get('monthly_usd', 0)
         logger.info(
             "ModelRouter inicializado",
             providers=list(providers.keys()),
-            budget_monthly=config.budget.get('monthly_usd', 0)
+            budget_monthly=budget_monthly
         )
     
     def route(
