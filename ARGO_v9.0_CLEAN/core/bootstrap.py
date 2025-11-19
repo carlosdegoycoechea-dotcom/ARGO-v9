@@ -283,12 +283,21 @@ class ARGOBootstrap:
         """
         from langchain_chroma import Chroma
         from langchain_openai import OpenAIEmbeddings
-        
+        import httpx
+
         embeddings_model = self.config.get("apis.openai.models.embeddings", "text-embedding-3-small")
-        
+
+        # Create custom HTTP client without proxy configuration
+        # This fixes the "proxies" parameter error in corporate/proxy environments
+        http_client = httpx.Client(
+            timeout=60.0,
+            follow_redirects=True
+        )
+
         embeddings = OpenAIEmbeddings(
             model=embeddings_model,
-            api_key=os.getenv("OPENAI_API_KEY")
+            api_key=os.getenv("OPENAI_API_KEY"),
+            http_client=http_client
         )
         
         vectors_path = base_path / "vectors"
