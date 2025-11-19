@@ -460,12 +460,16 @@ class UnifiedDatabase:
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("""
-                SELECT * FROM files 
-                WHERE project_id = ? 
+                SELECT * FROM files
+                WHERE project_id = ?
                 ORDER BY indexed_at DESC
             """, (project_id,))
-            
+
             return [dict(row) for row in cur.fetchall()]
+
+    def get_files(self, project_id: str) -> List[Dict]:
+        """Alias for get_project_files for UI compatibility"""
+        return self.get_project_files(project_id)
     
     def file_is_indexed(self, project_id: str, file_hash: str) -> bool:
         """Verifica si un archivo ya está indexado (F1 Architecture)"""
@@ -1059,8 +1063,12 @@ class UnifiedDatabase:
             Dict with alert status and details
         """
         summary = self.get_monthly_summary()
-        total_cost = summary['total_cost']
-        
+        total_cost = summary.get('total_cost', 0.0) if summary else 0.0
+
+        # Handle None values
+        if total_cost is None:
+            total_cost = 0.0
+
         percentage_used = (total_cost / monthly_budget * 100) if monthly_budget > 0 else 0
         
         alert = {

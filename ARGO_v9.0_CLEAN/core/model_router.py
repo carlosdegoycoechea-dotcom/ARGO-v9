@@ -180,7 +180,36 @@ class ModelRouter:
                 )
             
             raise
-    
+
+    def run(
+        self,
+        messages: List[Dict[str, str]],
+        task_type: str = "chat",
+        project_id: Optional[str] = None,
+        project_type: str = "standard",
+        conversation_id: Optional[str] = None,
+        override_model: Optional[str] = None,
+        override_provider: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        system_prompt: Optional[str] = None,
+        tools: Optional[List] = None,
+    ) -> LLMResponse:
+        """Alias for route() method for UI compatibility"""
+        return self.route(
+            messages=messages,
+            task_type=task_type,
+            project_id=project_id,
+            project_type=project_type,
+            conversation_id=conversation_id,
+            override_model=override_model,
+            override_provider=override_provider,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system_prompt=system_prompt,
+            tools=tools
+        )
+
     def _select_provider_and_model(
         self,
         task_type: str,
