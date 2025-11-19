@@ -1,0 +1,92 @@
+{
+  "score": 42,
+  "issues": {
+    "direct_llm": [
+      [
+        "tests/test_architecture.py",
+        50,
+        "ChatOpenAI"
+      ],
+      [
+        "tests/test_architecture.py",
+        51,
+        "ChatAnthropic"
+      ],
+      [
+        "tests/test_architecture.py",
+        50,
+        "OpenAI direct"
+      ]
+    ],
+    "direct_chunking": [
+      [
+        "tests/test_architecture.py",
+        65
+      ]
+    ]
+  },
+  "warnings": {
+    "emojis": [
+      [
+        "scripts/audit_architecture.py",
+        [
+          66,
+          71,
+          93
+        ]
+      ],
+      [
+        "core/model_router.py",
+        [
+          310,
+          314
+        ]
+      ],
+      [
+        "core/library_manager.py",
+        [
+          202
+        ]
+      ],
+      [
+        "evaluation/evaluate.py",
+        [
+          360,
+          403,
+          426
+        ]
+      ],
+      [
+        "tools/files_manager.py",
+        [
+          37
+        ]
+      ],
+      [
+        "app/panels/analytics_panel.py",
+        [
+          38,
+          40,
+          42
+        ]
+      ]
+    ]
+  },
+  "passed": {
+    "duplicates": [
+      "No duplicated filenames"
+    ],
+    "version_suffixes": [
+      "No version suffixes in filenames"
+    ],
+    "bootstrap": [
+      "Single initialization function"
+    ],
+    "imports": [
+      "No legacy imports"
+    ],
+    "hardcoded_config": [
+      "No hardcoded configuration"
+    ]
+  }
+}
