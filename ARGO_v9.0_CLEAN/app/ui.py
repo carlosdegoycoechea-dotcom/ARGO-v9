@@ -138,12 +138,22 @@ with st.sidebar:
     # New project creator
     with st.expander("➕ Create New Project"):
         with st.form("new_project_form"):
-            new_project_name = st.text_input("Project Name", placeholder="My Project")
+            new_project_name = st.text_input("Project Name*", placeholder="My Project")
             new_project_type = st.selectbox(
                 "Project Type",
-                ["standard", "construction", "it", "research"]
+                ["standard", "construction", "it", "research"],
+                help="standard: General projects | construction: Building/infrastructure | it: Software/tech | research: R&D"
             )
-            new_project_desc = st.text_area("Description (optional)", placeholder="Project description")
+            new_project_desc = st.text_area("Description", placeholder="Brief project description (optional)")
+
+            st.caption("**Google Drive Sync (Optional):**")
+            enable_drive = st.checkbox("Enable Google Drive sync", help="Requires google_credentials.json")
+            drive_folder_id = st.text_input(
+                "Drive Folder ID",
+                placeholder="1abc...xyz",
+                disabled=not enable_drive,
+                help="Get ID from Drive folder URL"
+            )
 
             submit_button = st.form_submit_button("Create Project")
 
@@ -151,17 +161,25 @@ with st.sidebar:
                 if new_project_name:
                     try:
                         # Create project
-                        unified_db.create_project(
+                        project_id = unified_db.create_project(
                             name=new_project_name,
                             project_type=new_project_type,
                             description=new_project_desc
                         )
-                        st.success(f"Project '{new_project_name}' created!")
+
+                        # Update Drive settings if enabled
+                        if enable_drive and drive_folder_id:
+                            unified_db.update_project(
+                                project_id=project_id,
+                                metadata={'drive_enabled': True, 'drive_folder_id': drive_folder_id}
+                            )
+
+                        st.success(f"✅ Project '{new_project_name}' created!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error creating project: {e}")
                 else:
-                    st.warning("Please enter a project name")
+                    st.warning("⚠️ Please enter a project name")
 
     st.divider()
 
@@ -233,15 +251,33 @@ with st.sidebar:
     st.divider()
     
     # Settings
-    with st.expander("Settings"):
+    with st.expander("⚙️ Settings"):
+        st.caption("**RAG Settings:**")
         use_hyde = st.checkbox("Use HyDE", value=config.get("rag.search.use_hyde", True))
         use_reranker = st.checkbox("Use Reranker", value=config.get("rag.search.use_reranker", True))
-        include_library = st.checkbox("Include Library", value=True)
-        
+        include_library = st.checkbox("Include Library", value=True, help="Search in global knowledge library")
+
+        st.divider()
+        st.caption("**Model Selection:**")
+        model_preference = st.radio(
+            "Provider",
+            ["Auto (Smart Routing)", "OpenAI only", "Anthropic only"],
+            help="Auto routes to best model per task"
+        )
+
+        # Map to override values
+        if model_preference == "OpenAI only":
+            override_provider = "openai"
+        elif model_preference == "Anthropic only":
+            override_provider = "anthropic"
+        else:
+            override_provider = None
+
         st.session_state.search_settings = {
             'use_hyde': use_hyde,
             'use_reranker': use_reranker,
-            'include_library': include_library
+            'include_library': include_library,
+            'override_provider': override_provider
         }
 
 # Main area
@@ -307,11 +343,12 @@ Guidelines:
                         {"role": "user", "content": prompt}
                     ]
                     
-                    # Get response from router
+                    # Get response from router with user preferences
                     response = model_router.run(
                         task_type="chat",
                         project_id=project['id'],
-                        messages=messages
+                        messages=messages,
+                        override_provider=search_settings.get('override_provider')
                     )
                     
                     # Display response
