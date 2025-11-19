@@ -1,0 +1,446 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    ARGO v9.0 - QUICK DATA FLOW DIAGRAM                        ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           1. USER QUERY FLOW                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ USER
+  │
+  │ Types question
+  │ "What is the budget?"
+  │
+  ▼
+┌─────────────────┐
+│  Streamlit UI   │
+│  (app/ui.py)    │
+└────────┬────────┘
+         │
+         │ 1. Append user message
+         │ 2. Get sidebar settings
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    RAG ENGINE SEARCH                        │
+│                  (core/rag_engine.py)                       │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────┐    ┌──────────┐    ┌───────────┐            │
+│  │  HyDE?   │───▶│  Embed   │───▶│  Search   │            │
+│  │ Optional │    │  Query   │    │Vectorstore│            │
+│  └──────────┘    └──────────┘    └─────┬─────┘            │
+│                                         │                   │
+│                  ┌──────────────────────┴──────┐           │
+│                  │                             │           │
+│         ┌────────▼────────┐         ┌──────────▼────────┐ │
+│         │ Project Vectors │         │ Library Vectors   │ │
+│         │   (ChromaDB)    │         │   (ChromaDB)      │ │
+│         └────────┬────────┘         └──────────┬────────┘ │
+│                  │                             │           │
+│                  └──────────┬──────────────────┘           │
+│                             │                              │
+│                    ┌────────▼────────┐                     │
+│                    │  Rerank Results │                     │
+│                    │   (Optional)    │                     │
+│                    └────────┬────────┘                     │
+│                             │                              │
+│                    ┌────────▼────────┐                     │
+│                    │  Top 5 Results  │                     │
+│                    │  + Metadata     │                     │
+│                    └────────┬────────┘                     │
+└─────────────────────────────┼──────────────────────────────┘
+                              │
+                              │ Results + Context
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   MODEL ROUTER                              │
+│                (core/model_router.py)                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌────────────────────────────────────────┐                │
+│  │ Smart Routing Logic                   │                │
+│  │                                        │                │
+│  │  Task Type?    Override Provider?     │                │
+│  │     │                 │                │                │
+│  │     ├─ chat ────────▶ GPT-4o          │                │
+│  │     ├─ analysis ───▶ Claude Sonnet    │                │
+│  │     ├─ code ───────▶ GPT-4o           │                │
+│  │     └─ creative ──▶ Claude Sonnet     │                │
+│  │                                        │                │
+│  └─────────────────┬──────────────────────┘                │
+│                    │                                        │
+│         ┌──────────▼──────────┐                            │
+│         │  Select Provider    │                            │
+│         └──────────┬──────────┘                            │
+│                    │                                        │
+│        ┌───────────▼────────────┐                          │
+│        │                        │                          │
+│   ┌────▼─────┐          ┌──────▼──────┐                   │
+│   │  OpenAI  │          │  Anthropic  │                   │
+│   │  GPT-4o  │          │   Claude    │                   │
+│   └────┬─────┘          └──────┬──────┘                   │
+│        │                       │                           │
+└────────┼───────────────────────┼───────────────────────────┘
+         │                       │
+         │ API Call              │ API Call
+         │                       │
+    ┌────▼─────┐            ┌────▼─────┐
+    │ OpenAI   │            │Anthropic │
+    │   API    │            │   API    │
+    └────┬─────┘            └────┬─────┘
+         │                       │
+         │ Response              │ Response
+         │                       │
+         └───────────┬───────────┘
+                     │
+         ┌───────────▼───────────┐
+         │   Log API Usage       │
+         │  (UnifiedDatabase)    │
+         │  - Tokens             │
+         │  - Cost               │
+         │  - Model              │
+         │  - Timestamp          │
+         └───────────┬───────────┘
+                     │
+                     │ LLMResponse
+                     │
+                     ▼
+         ┌─────────────────────┐
+         │   UI Display        │
+         │                     │
+         │  ✓ Response text    │
+         │  ✓ Sources panel    │
+         │  ✓ Confidence score │
+         │  ✓ Feedback buttons │
+         └─────────┬───────────┘
+                   │
+                   │ Auto-save
+                   │
+                   ▼
+         ┌─────────────────────┐
+         │  Save Conversation  │
+         │  (UnifiedDatabase)  │
+         │  conversations table│
+         └─────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        2. DOCUMENT UPLOAD FLOW                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ USER
+  │
+  │ Uploads document.pdf
+  │
+  ▼
+┌─────────────────┐
+│  File Uploader  │
+│  (sidebar)      │
+└────────┬────────┘
+         │
+         │ Save to temp/
+         │
+         ▼
+┌─────────────────────────────────────┐
+│      get_file_info()                │
+│  - Calculate hash (SHA256)          │
+│  - Get size (bytes, KB, MB)         │
+│  - Detect type (pdf, docx, etc)     │
+└────────┬────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────┐
+│         extract_and_chunk()                     │
+│      (tools/extractors.py)                      │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ┌─────────────┐                               │
+│  │ File Type?  │                               │
+│  └──────┬──────┘                               │
+│         │                                       │
+│  ┌──────▼────────┬──────────┬─────────┐        │
+│  │               │          │         │        │
+│ PDF           DOCX       XLSX       TXT        │
+│  │               │          │         │        │
+│ PyPDF2    python-docx  openpyxl   Read         │
+│  │               │          │         │        │
+│  └───────┬───────┴──────────┴─────────┘        │
+│          │                                      │
+│          │ Raw Text                             │
+│          │                                      │
+│          ▼                                      │
+│  ┌──────────────────────────┐                  │
+│  │RecursiveCharacterSplitter│                  │
+│  │  - chunk_size: 1200      │                  │
+│  │  - chunk_overlap: 250    │                  │
+│  └──────────┬───────────────┘                  │
+│             │                                   │
+│             ▼                                   │
+│  ┌─────────────────────┐                       │
+│  │  List of Chunks     │                       │
+│  │  [{content, meta}]  │                       │
+│  └──────────┬──────────┘                       │
+└─────────────┼──────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│     Index in Vectorstore            │
+│  vectorstore.add_texts()            │
+├─────────────────────────────────────┤
+│                                     │
+│  For each chunk:                   │
+│    ┌──────────────────┐            │
+│    │ Call OpenAI API  │            │
+│    │ text-embedding-  │            │
+│    │   3-small        │            │
+│    └────────┬─────────┘            │
+│             │                       │
+│             ▼                       │
+│    ┌──────────────────┐            │
+│    │ Store in         │            │
+│    │ ChromaDB         │            │
+│    │ - Vector         │            │
+│    │ - Metadata       │            │
+│    └──────────────────┘            │
+└─────────────┬───────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│   Register in Database              │
+│  unified_db.register_file()         │
+├─────────────────────────────────────┤
+│                                     │
+│  INSERT INTO indexed_files:        │
+│    - filename                       │
+│    - file_hash                      │
+│    - file_size                      │
+│    - chunk_count                    │
+│    - indexed_at                     │
+│                                     │
+└─────────────┬───────────────────────┘
+              │
+              ▼
+       ┌──────────────┐
+       │ UI Success   │
+       │ "N chunks    │
+       │  X.X KB"     │
+       └──────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      3. SYSTEM INITIALIZATION                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+streamlit run app/ui.py
+         │
+         ▼
+┌─────────────────────────────────┐
+│  ARGOBootstrap.initialize()     │
+├─────────────────────────────────┤
+│                                 │
+│  Phase 1: Configuration         │
+│    ├─ Load config.yaml          │
+│    └─ Load .env secrets         │
+│                                 │
+│  Phase 2: Logging               │
+│    └─ Create logs/ directory    │
+│                                 │
+│  Phase 3: UnifiedDatabase       │
+│    ├─ Create/Open SQLite        │
+│    └─ Ensure tables exist       │
+│                                 │
+│  Phase 4: ModelRouter           │
+│    ├─ Initialize OpenAI client  │
+│    └─ Initialize Anthropic      │
+│                                 │
+│  Phase 5: LibraryManager        │
+│    └─ Load global knowledge     │
+│                                 │
+│  Phase 6: Project Setup         │
+│    ├─ Get/Create project        │
+│    └─ Set as active             │
+│                                 │
+│  Phase 7: Project Components    │
+│    ├─ Create Vectorstore        │
+│    │   (ChromaDB)               │
+│    ├─ Initialize RAG Engine     │
+│    └─ Setup watchers (optional) │
+│                                 │
+│  Phase 8: Return ARGO dict      │
+│    └─ All components ready      │
+│                                 │
+└─────────────┬───────────────────┘
+              │
+              ▼
+   ┌──────────────────────┐
+   │ st.session_state     │
+   │ .argo = {            │
+   │   config,            │
+   │   unified_db,        │
+   │   model_router,      │
+   │   rag_engine,        │
+   │   vectorstore,       │
+   │   project            │
+   │ }                    │
+   └──────────┬───────────┘
+              │
+              ▼
+        ┌─────────┐
+        │ UI Ready│
+        └─────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        4. DATA STORAGE LAYER                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────┐
+│                    UnifiedDatabase (SQLite)                    │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────┐  ┌─────────────┐  ┌──────────────┐         │
+│  │   projects   │  │indexed_files│  │conversations │         │
+│  ├──────────────┤  ├─────────────┤  ├──────────────┤         │
+│  │ id           │  │ id          │  │ id           │         │
+│  │ name         │  │ project_id  │  │ project_id   │         │
+│  │ type         │  │ filename    │  │ session_id   │         │
+│  │ status       │  │ file_hash   │  │ messages_json│         │
+│  │ description  │  │ file_size   │  │ created_at   │         │
+│  │ metadata     │  │ chunk_count │  │ updated_at   │         │
+│  │ created_at   │  │ indexed_at  │  └──────────────┘         │
+│  └──────────────┘  └─────────────┘                           │
+│                                                                │
+│  ┌──────────────┐  ┌─────────────┐  ┌──────────────┐         │
+│  │    notes     │  │  api_usage  │  │   library    │         │
+│  ├──────────────┤  ├─────────────┤  ├──────────────┤         │
+│  │ id           │  │ id          │  │ id           │         │
+│  │ project_id   │  │ project_id  │  │ category_id  │         │
+│  │ title        │  │ provider    │  │ title        │         │
+│  │ content      │  │ model       │  │ content      │         │
+│  │ tags         │  │ total_tokens│  │ source       │         │
+│  │ created_at   │  │ cost        │  │ metadata     │         │
+│  └──────────────┘  │ timestamp   │  └──────────────┘         │
+│                    └─────────────┘                            │
+└────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────┐
+│                ChromaDB Vector Stores                          │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌───────────────────────┐  ┌───────────────────────┐         │
+│  │  Project Vectorstore  │  │  Library Vectorstore  │         │
+│  ├───────────────────────┤  ├───────────────────────┤         │
+│  │                       │  │                       │         │
+│  │  Embeddings:          │  │  Embeddings:          │         │
+│  │   - Document chunks   │  │   - Library docs      │         │
+│  │   - 1536 dimensions   │  │   - 1536 dimensions   │         │
+│  │                       │  │                       │         │
+│  │  Metadata:            │  │  Metadata:            │         │
+│  │   - source filename   │  │   - category          │         │
+│  │   - page number       │  │   - source            │         │
+│  │   - project_id        │  │   - tags              │         │
+│  │   - uploaded_at       │  │   - created_at        │         │
+│  │                       │  │                       │         │
+│  │  Persistence:         │  │  Persistence:         │         │
+│  │   data/projects/      │  │   data/library/       │         │
+│  │   {project}/vectors/  │  │   vectors/            │         │
+│  └───────────────────────┘  └───────────────────────┘         │
+└────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          5. KEY INTERACTIONS                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+UI ←──────────→ ARGOBootstrap
+                    │
+                    ├──→ Config (YAML + .env)
+                    │
+                    ├──→ UnifiedDatabase (SQLite)
+                    │       │
+                    │       ├──→ Projects management
+                    │       ├──→ File tracking
+                    │       ├──→ Conversations storage
+                    │       ├──→ Notes management
+                    │       └──→ API usage logging
+                    │
+                    ├──→ ModelRouter
+                    │       │
+                    │       ├──→ LLMProviderManager
+                    │       │       ├──→ OpenAI (GPT-4)
+                    │       │       └──→ Anthropic (Claude)
+                    │       │
+                    │       └──→ Smart task routing
+                    │
+                    ├──→ RAG Engine
+                    │       │
+                    │       ├──→ HyDE query enhancement
+                    │       ├──→ Semantic search
+                    │       ├──→ Reranking
+                    │       └──→ Context formatting
+                    │
+                    ├──→ Vectorstore (ChromaDB)
+                    │       │
+                    │       ├──→ Project vectors
+                    │       └──→ Library vectors
+                    │
+                    └──→ LibraryManager
+                            │
+                            └──→ Global knowledge base
+
+
+External APIs:
+    ┌──────────────┐     ┌───────────────┐     ┌──────────────┐
+    │  OpenAI API  │     │ Anthropic API │     │ Google Drive │
+    │              │     │               │     │  (Optional)  │
+    │ - Embeddings │     │ - Claude 3.5  │     │ - Sync docs  │
+    │ - GPT-4o     │     │   Sonnet      │     │              │
+    │ - GPT-4o-mini│     │               │     │              │
+    └──────────────┘     └───────────────┘     └──────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            6. UI STRUCTURE                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        ARGO Enterprise PMO Platform                         │
+├───────────────┬─────────────────────────────────────────────────────────────┤
+│   SIDEBAR     │                    MAIN AREA                                │
+│               │                                                             │
+│ Projects      │  ┌─────────────────────────────────────────────────────┐   │
+│  ├─ Selector  │  │ Tabs: [Chat] [Documents] [Analytics] [Conversations]│  │
+│  └─ Creator   │  └─────────────────────────────────────────────────────┘   │
+│               │                                                             │
+│ Conversations │  Chat Tab:                                                  │
+│  ├─ New Chat  │   - Message history                                         │
+│  ├─ Save      │   - Sources expander                                        │
+│  └─ Recent    │   - Confidence indicator                                    │
+│               │   - Feedback buttons                                        │
+│ Notes         │   - Chat input (fixed bottom)                               │
+│  ├─ List      │                                                             │
+│  └─ Create    │  Documents Tab:                                             │
+│               │   - Table of indexed files                                  │
+│ Active Sources│   - Filename, Type, Chunks, Date                            │
+│  └─ Last query│                                                             │
+│               │  Analytics Tab:                                             │
+│ Upload        │   - Budget alerts                                           │
+│  └─ Files     │   - Metrics (tokens, cost, requests)                        │
+│               │   - Charts (daily, by project, by model)                    │
+│ Drive Sync    │                                                             │
+│  └─ Sync Now  │  Conversations Tab:                                         │
+│               │   - Full conversation history                               │
+│ Settings      │   - Load/Delete per session                                 │
+│  ├─ RAG       │                                                             │
+│  └─ Model     │                                                             │
+│               │                                                             │
+│ Monitor       │                                                             │
+│  ├─ Size      │                                                             │
+│  └─ Docs      │                                                             │
+└───────────────┴─────────────────────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                         END OF FLOW DIAGRAM                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
