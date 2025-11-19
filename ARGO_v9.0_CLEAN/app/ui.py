@@ -229,7 +229,7 @@ with st.sidebar:
                     pass
                 
                 # Register in database
-                unified_db.add_file(
+                unified_db.register_file(
                     project_id=project['id'],
                     filename=uploaded_file.name,
                     file_path=str(temp_path),

@@ -823,37 +823,6 @@ class UnifiedDatabase:
             
             return [dict(row) for row in cur.fetchall()]
 
-    # ==================== ANALYTICS QUERIES ====================
-    # Methods for usage monitoring and cost tracking
-    
-    def get_daily_usage(self, days: int = 30) -> List[Dict]:
-        """
-        Get daily API usage for last N days
-        
-        Args:
-            days: Number of days to retrieve
-        
-        Returns:
-            List of dicts with day, tokens, cost, requests
-        """
-        with self._get_connection() as conn:
-            cur = conn.cursor()
-            
-            cur.execute("""
-                SELECT 
-                    DATE(timestamp) as day,
-                    SUM(total_tokens) as tokens,
-                    SUM(cost_estimated) as cost,
-                    COUNT(*) as requests
-                FROM api_usage
-                WHERE timestamp >= datetime('now', ? || ' days')
-                GROUP BY DATE(timestamp)
-                ORDER BY day DESC
-            """, (f'-{days}',))
-            
-            rows = cur.fetchall()
-            return [dict(row) for row in rows]
-    
     def get_usage_by_project(
         self,
         start_date: str = None,

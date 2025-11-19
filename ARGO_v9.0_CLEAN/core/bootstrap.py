@@ -282,6 +282,28 @@ class ARGOBootstrap:
             Chroma vectorstore
         """
         from langchain_chroma import Chroma
+
+        embeddings = self._create_embeddings()
+
+        vectors_path = base_path / "vectors"
+        vectors_path.mkdir(parents=True, exist_ok=True)
+
+        vectorstore = Chroma(
+            persist_directory=str(vectors_path),
+            embedding_function=embeddings,
+            collection_name=collection_name
+        )
+
+        return vectorstore
+
+    def _create_embeddings(self):
+        """
+        Create OpenAI embeddings with custom HTTP clients.
+        Centralizes embeddings creation to avoid code duplication.
+
+        Returns:
+            OpenAIEmbeddings instance configured with httpx clients
+        """
         from langchain_openai import OpenAIEmbeddings
         import httpx
 
@@ -299,23 +321,12 @@ class ARGOBootstrap:
             follow_redirects=True
         )
 
-        embeddings = OpenAIEmbeddings(
+        return OpenAIEmbeddings(
             model=embeddings_model,
             api_key=os.getenv("OPENAI_API_KEY"),
             http_client=sync_client,
             http_async_client=async_client
         )
-        
-        vectors_path = base_path / "vectors"
-        vectors_path.mkdir(parents=True, exist_ok=True)
-        
-        vectorstore = Chroma(
-            persist_directory=str(vectors_path),
-            embedding_function=embeddings,
-            collection_name=collection_name
-        )
-        
-        return vectorstore
     
     def _init_rag_engine(self, project_vectorstore, library_vectorstore, project: Dict):
         """
@@ -331,23 +342,9 @@ class ARGOBootstrap:
         """
         from core.rag_engine import UnifiedRAGEngine
 
-        # Get embeddings with custom HTTP clients (fix for proxies error)
-        from langchain_openai import OpenAIEmbeddings
-        import httpx
+        # Use centralized embeddings creation (avoids code duplication)
+        embeddings = self._create_embeddings()
 
-        embeddings_model = self.config.get("apis.openai.models.embeddings")
-
-        # Create custom HTTP clients (sync + async) without proxy configuration
-        sync_client = httpx.Client(timeout=60.0, follow_redirects=True)
-        async_client = httpx.AsyncClient(timeout=60.0, follow_redirects=True)
-
-        embeddings = OpenAIEmbeddings(
-            model=embeddings_model,
-            api_key=os.getenv("OPENAI_API_KEY"),
-            http_client=sync_client,
-            http_async_client=async_client
-        )
-        
         rag_engine = UnifiedRAGEngine(
             project_vectorstore=project_vectorstore,
             library_vectorstore=library_vectorstore,
