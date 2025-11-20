@@ -309,8 +309,33 @@ if 'argo_initialized' not in st.session_state:
             st.session_state.argo = argo
             st.session_state.config = config
             st.session_state.argo_initialized = True
-            st.session_state.messages = []
-            st.session_state.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+            # Try to load last conversation automatically
+            unified_db = argo['unified_db']
+            project = argo['project']
+            try:
+                recent_conversations = unified_db.list_conversations(project_id=project['id'], limit=1)
+                if recent_conversations:
+                    # Load most recent conversation
+                    last_conv = recent_conversations[0]
+                    st.session_state.session_id = last_conv['session_id']
+                    loaded_messages = unified_db.load_conversation(
+                        project_id=project['id'],
+                        session_id=last_conv['session_id']
+                    )
+                    st.session_state.messages = loaded_messages if loaded_messages else []
+                    logger.info(f"Loaded last conversation: {last_conv['session_id']} ({len(st.session_state.messages)} messages)")
+                else:
+                    # No previous conversations, start fresh
+                    st.session_state.messages = []
+                    st.session_state.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    logger.info("No previous conversations, starting fresh session")
+            except Exception as e:
+                # Fallback: start fresh if loading fails
+                logger.warning(f"Could not load last conversation: {e}")
+                st.session_state.messages = []
+                st.session_state.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
             st.session_state.last_sources = []
 
             logger.info("System initialized successfully")
@@ -417,7 +442,7 @@ with st.sidebar:
                 if new_project_name:
                     # Check if project already exists
                     if new_project_name in project_names:
-                        st.error(f"Project '{new_project_name}' already exists. Please choose a different name.")
+                        st.error(f"Project '{new_project_name}' already exists. Please choose a different name or update Drive settings in the 'Project' tab.")
                     else:
                         try:
                             project_id = unified_db.create_project(
