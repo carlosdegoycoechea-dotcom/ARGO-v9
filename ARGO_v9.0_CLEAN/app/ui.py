@@ -813,9 +813,8 @@ with tab1:
 
     # Display message history
     for idx, msg in enumerate(st.session_state.messages):
-        # Use simple avatars without emojis - Claude style
-        avatar = "assistant" if msg['role'] == 'assistant' else "user"
-        with st.chat_message(msg['role'], avatar=avatar):
+        # No avatars/emojis - clean text only
+        with st.chat_message(msg['role']):
             st.markdown(msg['content'])
 
             # Show metadata if exists
@@ -910,34 +909,34 @@ with tab1:
                     # Get search settings
                     search_settings = st.session_state.get('search_settings', {})
 
-                    # Web search (if enabled and query triggers it)
+                    # Web search (ONLY if enabled and query needs current info)
                     web_context = ""
                     if search_settings.get('enable_web_search', False):
                         try:
                             from core.web_search import WebSearchEngine, should_use_web_search
 
-                            # Always try web search for user queries
-                            try:
-                                web_engine = WebSearchEngine(
-                                    provider=search_settings.get('web_provider', 'duckduckgo')
-                                )
-                                logger.info(f"Performing web search with provider: {search_settings.get('web_provider')}")
+                            # Only search if query indicates need for web info
+                            if should_use_web_search(prompt):
+                                try:
+                                    web_engine = WebSearchEngine(
+                                        provider=search_settings.get('web_provider', 'duckduckgo')
+                                    )
+                                    logger.info(f"Query requires web search - using provider: {search_settings.get('web_provider')}")
 
-                                web_results = web_engine.search(prompt, count=5)
+                                    web_results = web_engine.search(prompt, count=5)
 
-                                if web_results and len(web_results) > 0:
-                                    web_context = web_engine.format_results_for_context(web_results)
-                                    st.success(f"Web search completed: {len(web_results)} results found")
-                                    logger.info(f"Web search returned {len(web_results)} results")
-                                else:
-                                    st.warning("Web search returned no results")
-                                    logger.warning("Web search returned empty results")
-                            except Exception as e:
-                                st.error(f"Web search error: {str(e)}")
-                                logger.error(f"Web search failed: {e}", exc_info=True)
+                                    if web_results and len(web_results) > 0:
+                                        web_context = web_engine.format_results_for_context(web_results)
+                                        st.success(f"Web search: {len(web_results)} results")
+                                        logger.info(f"Web search returned {len(web_results)} results")
+                                    else:
+                                        logger.info("Web search returned no results")
+                                except Exception as e:
+                                    logger.error(f"Web search failed: {e}", exc_info=True)
+                            else:
+                                logger.debug("Query does not require web search - using project documents only")
                         except ImportError as e:
-                            st.warning(f"Web search not available: {e}")
-                            logger.warning(f"WebSearchEngine import failed: {e}")
+                            logger.warning(f"WebSearchEngine not available: {e}")
 
                     # Search RAG
                     results, search_metadata = rag_engine.search(
@@ -1113,7 +1112,9 @@ Guidelines:
 
 # ==================== TAB 2: DOCUMENTS ====================
 with tab2:
-    st.subheader("Project Documents")
+    st.subheader(f"{project['name']} - Documents")
+    st.caption(f"Project Assistant • {project['project_type'].title()}")
+    st.divider()
 
     try:
         files = unified_db.get_files(project_id=project['id'])
@@ -1136,11 +1137,14 @@ with tab2:
 
 # ==================== TAB 3: ANALYTICS ====================
 with tab3:
+    st.subheader(f"{project['name']} - Analytics")
+    st.caption(f"Project Assistant • {project['project_type'].title()}")
+    st.divider()
+
     try:
         from app.panels.analytics_panel import render_analytics_panel
         render_analytics_panel(unified_db, config)
     except ImportError:
-        st.subheader("Usage Analytics")
 
         col1, col2, col3 = st.columns(3)
 
@@ -1181,8 +1185,9 @@ with tab3:
 
 # ==================== TAB 4: CONVERSATIONS & NOTES ====================
 with tab4:
-    st.subheader("Conversation History")
-    st.caption("View, rename, load, and manage all your conversations")
+    st.subheader(f"{project['name']} - Conversations & Notes")
+    st.caption(f"Project Assistant • {project['project_type'].title()}")
+    st.divider()
 
     try:
         all_conversations = unified_db.list_conversations(project_id=project['id'], limit=50)
@@ -1271,8 +1276,9 @@ with tab4:
 
 # ==================== TAB 5: PROJECT ====================
 with tab5:
-    st.subheader("Project Settings")
-    st.caption("View and manage project configuration")
+    st.subheader(f"{project['name']} - Project Settings")
+    st.caption(f"Project Assistant • {project['project_type'].title()}")
+    st.divider()
 
     # ==================== PROJECT INFO ====================
     st.write("### Basic Information")
@@ -1309,15 +1315,8 @@ with tab5:
     # ==================== GOOGLE DRIVE ====================
     st.write("### Google Drive Integration")
 
-    # Get current metadata
+    # Get current metadata (now pre-parsed from database)
     metadata = project.get('metadata', {})
-    if isinstance(metadata, str):
-        import json
-        try:
-            metadata = json.loads(metadata)
-        except:
-            metadata = {}
-
     drive_enabled = metadata.get('drive_enabled', False)
     current_drive_id = metadata.get('drive_folder_id', '')
 

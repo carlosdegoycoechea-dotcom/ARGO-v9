@@ -391,7 +391,7 @@ class UnifiedDatabase:
                 return None
             
             row = cur.fetchone()
-            
+
             if row:
                 # Actualizar last_accessed
                 update_id = row['id']
@@ -399,7 +399,18 @@ class UnifiedDatabase:
                     "UPDATE projects SET last_accessed = CURRENT_TIMESTAMP WHERE id = ?",
                     (update_id,)
                 )
-                return dict(row)
+
+                # Convert to dict and parse metadata_json
+                project_dict = dict(row)
+                if 'metadata_json' in project_dict and project_dict['metadata_json']:
+                    try:
+                        project_dict['metadata'] = json.loads(project_dict['metadata_json'])
+                    except (json.JSONDecodeError, TypeError):
+                        project_dict['metadata'] = {}
+                else:
+                    project_dict['metadata'] = {}
+
+                return project_dict
             return None
     
     def list_projects(self, active_only: bool = True, project_type: str = None) -> List[Dict]:
@@ -424,9 +435,21 @@ class UnifiedDatabase:
                 params.append(project_type)
             
             query += " ORDER BY last_accessed DESC"
-            
+
             cur.execute(query, params)
-            return [dict(row) for row in cur.fetchall()]
+            projects = []
+            for row in cur.fetchall():
+                project_dict = dict(row)
+                # Parse metadata_json if present
+                if 'metadata_json' in project_dict and project_dict['metadata_json']:
+                    try:
+                        project_dict['metadata'] = json.loads(project_dict['metadata_json'])
+                    except (json.JSONDecodeError, TypeError):
+                        project_dict['metadata'] = {}
+                else:
+                    project_dict['metadata'] = {}
+                projects.append(project_dict)
+            return projects
     
     # ==========================================
     # ARCHIVOS
