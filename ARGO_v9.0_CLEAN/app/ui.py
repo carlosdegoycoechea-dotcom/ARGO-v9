@@ -16,6 +16,8 @@ from core.bootstrap import initialize_argo
 from core.config import get_config
 from core.logger import get_logger
 from core.conversation_summarizer import ConversationSummarizer
+from core.streaming_manager import StreamingManager, StreamlitStreamingHelper
+from core.memory_manager import MemoryManager
 from tools.extractors import extract_and_chunk, get_file_info
 
 logger = get_logger("UI")
@@ -284,6 +286,20 @@ if 'conversation_summarizer' not in st.session_state:
     logger.info("ConversationSummarizer initialized")
 
 conversation_summarizer = st.session_state.conversation_summarizer
+
+# Initialize streaming manager (once per session)
+if 'streaming_manager' not in st.session_state:
+    st.session_state.streaming_manager = StreamingManager(chunk_size=1)
+    logger.info("StreamingManager initialized")
+
+streaming_manager = st.session_state.streaming_manager
+
+# Initialize memory manager (once per session)
+if 'memory_manager' not in st.session_state:
+    st.session_state.memory_manager = MemoryManager(unified_db)
+    logger.info("MemoryManager initialized")
+
+memory_manager = st.session_state.memory_manager
 
 # ====================
 # SIDEBAR
@@ -636,13 +652,26 @@ with st.sidebar:
             conversation_summarizer.threshold = summarization_threshold
             logger.info(f"Summarization threshold updated to {summarization_threshold}")
 
+        st.divider()
+        st.caption("Response Display")
+
+        enable_streaming = st.checkbox(
+            "Enable Streaming Responses",
+            value=True,
+            help="Show responses word-by-word in real-time (like ChatGPT)"
+        )
+
+        if not enable_streaming:
+            st.info("Responses will appear all at once after processing")
+
         st.session_state.search_settings = {
             'use_hyde': use_hyde,
             'use_reranker': use_reranker,
             'include_library': include_library,
             'override_provider': override_provider,
             'enable_web_search': enable_web_search,
-            'web_provider': web_provider
+            'web_provider': web_provider,
+            'enable_streaming': enable_streaming
         }
 
     st.divider()
@@ -662,6 +691,23 @@ with st.sidebar:
         with col2:
             files_count = len(unified_db.get_files(project_id=project['id']))
             st.metric("Documents", files_count)
+
+        # Feedback statistics
+        try:
+            feedback_stats = unified_db.get_feedback_stats(project_id=project['id'])
+            if feedback_stats.get('total', 0) > 0:
+                st.divider()
+                st.caption("User Feedback")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    helpful_pct = (feedback_stats.get('helpful', 0) / feedback_stats['total'] * 100) if feedback_stats['total'] > 0 else 0
+                    st.metric("Helpful", f"{helpful_pct:.0f}%")
+                with col2:
+                    st.metric("Total Feedback", feedback_stats['total'])
+        except Exception as e:
+            logger.warning(f"Feedback stats error: {e}")
+
     except Exception as e:
         logger.warning(f"System monitor error: {e}")
 
@@ -714,23 +760,52 @@ with tab1:
                 if msg_idx > 0:
                     prev_query = st.session_state.messages[msg_idx - 1]['content']
 
+                # Extract metadata
+                metadata = msg.get('metadata', {})
+                sources = ", ".join(metadata.get('sources', [])) if metadata.get('sources') else None
+                confidence = metadata.get('confidence')
+
                 with col1:
                     if st.button("Helpful", key=f"up_{idx}"):
                         # Save positive feedback
                         try:
-                            # Could implement unified_db.save_feedback() method
-                            st.success("Thank you for your feedback")
-                        except:
-                            pass
+                            memory_manager.save_feedback(
+                                project_id=project['id'],
+                                session_id=st.session_state.session_id,
+                                query=prev_query,
+                                response=msg['content'],
+                                rating=1,  # Helpful
+                                sources=sources,
+                                confidence=confidence
+                            )
+                            # Mark as recorded to prevent duplicate feedback
+                            msg['feedback_recorded'] = True
+                            st.success("Thank you for your feedback!")
+                            st.rerun()
+                        except Exception as e:
+                            logger.error(f"Failed to save feedback: {e}")
+                            st.error("Failed to save feedback")
 
                 with col2:
                     if st.button("Not Helpful", key=f"down_{idx}"):
                         # Save negative feedback
                         try:
-                            # Could implement unified_db.save_feedback() method
-                            st.info("Feedback recorded")
-                        except:
-                            pass
+                            memory_manager.save_feedback(
+                                project_id=project['id'],
+                                session_id=st.session_state.session_id,
+                                query=prev_query,
+                                response=msg['content'],
+                                rating=-1,  # Not helpful
+                                sources=sources,
+                                confidence=confidence
+                            )
+                            # Mark as recorded
+                            msg['feedback_recorded'] = True
+                            st.info("Feedback recorded. We'll improve!")
+                            st.rerun()
+                        except Exception as e:
+                            logger.error(f"Failed to save feedback: {e}")
+                            st.error("Failed to save feedback")
 
     # Chat input
     if prompt := st.chat_input("Ask about your project..."):
@@ -835,16 +910,68 @@ Guidelines:
                     messages.extend(history_for_llm)
                     messages.append({"role": "user", "content": prompt})
 
-                    # Get response from router
-                    response = model_router.run(
-                        task_type="chat",
-                        project_id=project['id'],
-                        messages=messages,
-                        override_provider=search_settings.get('override_provider')
-                    )
+                    # Determine provider to use
+                    override_provider = search_settings.get('override_provider')
 
-                    # Display response
-                    st.markdown(response.content)
+                    # Check if streaming is enabled
+                    enable_streaming = search_settings.get('enable_streaming', True)
+
+                    if enable_streaming:
+                        # STREAMING MODE: Show responses word-by-word
+                        placeholder = st.empty()
+                        full_response = ""
+
+                        try:
+                            # Determine which API to use
+                            if override_provider == "anthropic":
+                                # Use Anthropic streaming
+                                from anthropic import Anthropic
+                                anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+                                stream_gen = streaming_manager.stream_anthropic(
+                                    client=anthropic_client,
+                                    messages=messages,
+                                    model="claude-3-5-sonnet-20241022",
+                                    max_tokens=4096
+                                )
+                            else:
+                                # Use OpenAI streaming (default or explicit)
+                                from openai import OpenAI
+                                openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+                                stream_gen = streaming_manager.stream_openai(
+                                    client=openai_client,
+                                    messages=messages,
+                                    model="gpt-4o"
+                                )
+
+                            # Stream to placeholder
+                            full_response = StreamlitStreamingHelper.stream_to_placeholder(
+                                streaming_manager=streaming_manager,
+                                stream_generator=stream_gen,
+                                placeholder=placeholder,
+                                delay=0.01  # Small delay for visual effect
+                            )
+
+                        except Exception as e:
+                            logger.error(f"Streaming failed: {e}", exc_info=True)
+                            placeholder.error(f"Streaming error: {e}")
+                            full_response = "[Error during streaming]"
+
+                        response_content = full_response
+
+                    else:
+                        # NON-STREAMING MODE: Traditional all-at-once response
+                        response = model_router.run(
+                            task_type="chat",
+                            project_id=project['id'],
+                            messages=messages,
+                            override_provider=override_provider
+                        )
+
+                        # Display response
+                        st.markdown(response.content)
+                        response_content = response.content
 
                     # Extract sources for metadata
                     sources = [
@@ -865,7 +992,7 @@ Guidelines:
                     # Save assistant message
                     message_data = {
                         'role': 'assistant',
-                        'content': response.content
+                        'content': response_content
                     }
                     if response_metadata:
                         message_data['metadata'] = response_metadata

@@ -642,7 +642,191 @@ class UnifiedDatabase:
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("DELETE FROM project_notes WHERE id = ?", (note_id,))
-    
+
+    # ==========================================
+    # FEEDBACK (Memory Manager)
+    # ==========================================
+
+    def save_feedback(
+        self,
+        project_id: str,
+        session_id: str,
+        query: str,
+        response: str,
+        rating: int,
+        feedback_text: str = None,
+        sources: str = None,
+        confidence: float = None
+    ) -> int:
+        """
+        Guarda feedback del usuario sobre una respuesta.
+
+        Args:
+            project_id: ID del proyecto
+            session_id: ID de la sesión
+            query: Pregunta del usuario
+            response: Respuesta del asistente
+            rating: 1 (útil), -1 (no útil), 0 (neutral)
+            feedback_text: Texto adicional de feedback
+            sources: Fuentes usadas
+            confidence: Nivel de confianza
+
+        Returns:
+            ID del feedback guardado
+        """
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+
+            # Migrate table if needed (add new columns)
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN session_id TEXT")
+            except:
+                pass  # Column already exists
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN response TEXT")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN rating_int INTEGER")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN feedback_text TEXT")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN sources TEXT")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN confidence REAL")
+            except:
+                pass
+
+            # Convert rating int to old format for backwards compatibility
+            rating_text = 'up' if rating == 1 else 'down' if rating == -1 else 'neutral'
+
+            # Insert feedback
+            cur.execute("""
+                INSERT INTO feedback
+                (project_id, session_id, query, answer, response, rating, rating_int,
+                 feedback_text, sources, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (project_id, session_id, query, response, response, rating_text,
+                  rating, feedback_text, sources, confidence))
+
+            feedback_id = cur.lastrowid
+            logger.debug(f"Feedback guardado [id={feedback_id}, rating={rating}]")
+            return feedback_id
+
+    def get_feedback(
+        self,
+        project_id: str,
+        limit: int = 50,
+        rating: int = None
+    ) -> List[Dict]:
+        """
+        Obtiene feedback del proyecto.
+
+        Args:
+            project_id: ID del proyecto
+            limit: Número máximo de resultados
+            rating: Filtrar por rating (1, -1, 0) o None para todos
+
+        Returns:
+            Lista de entradas de feedback
+        """
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+
+            if rating is not None:
+                cur.execute("""
+                    SELECT * FROM feedback
+                    WHERE project_id = ? AND rating_int = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (project_id, rating, limit))
+            else:
+                cur.execute("""
+                    SELECT * FROM feedback
+                    WHERE project_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (project_id, limit))
+
+            results = []
+            for row in cur.fetchall():
+                entry = dict(row)
+                # Use response field, fall back to answer if response doesn't exist
+                if 'response' not in entry or entry['response'] is None:
+                    entry['response'] = entry.get('answer', '')
+                # Normalize timestamp field
+                entry['timestamp'] = entry.get('created_at')
+                results.append(entry)
+
+            return results
+
+    def delete_feedback(self, feedback_id: int):
+        """Elimina una entrada de feedback"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM feedback WHERE id = ?", (feedback_id,))
+            logger.debug(f"Feedback eliminado [id={feedback_id}]")
+
+    def get_feedback_stats(self, project_id: str) -> Dict:
+        """Obtiene estadísticas de feedback del proyecto"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+
+            stats = {
+                'total': 0,
+                'helpful': 0,
+                'not_helpful': 0,
+                'neutral': 0
+            }
+
+            # Count total
+            cur.execute("SELECT COUNT(*) as count FROM feedback WHERE project_id = ?", (project_id,))
+            stats['total'] = cur.fetchone()['count']
+
+            # Count by rating (try new column first, fall back to old)
+            try:
+                cur.execute("""
+                    SELECT rating_int, COUNT(*) as count
+                    FROM feedback
+                    WHERE project_id = ? AND rating_int IS NOT NULL
+                    GROUP BY rating_int
+                """, (project_id,))
+
+                for row in cur.fetchall():
+                    if row['rating_int'] == 1:
+                        stats['helpful'] = row['count']
+                    elif row['rating_int'] == -1:
+                        stats['not_helpful'] = row['count']
+                    elif row['rating_int'] == 0:
+                        stats['neutral'] = row['count']
+            except:
+                # Fall back to old rating column
+                cur.execute("""
+                    SELECT rating, COUNT(*) as count
+                    FROM feedback
+                    WHERE project_id = ?
+                    GROUP BY rating
+                """, (project_id,))
+
+                for row in cur.fetchall():
+                    if row['rating'] == 'up':
+                        stats['helpful'] = row['count']
+                    elif row['rating'] == 'down':
+                        stats['not_helpful'] = row['count']
+
+            return stats
+
     # ==========================================
     # UTILIDADES
     # ==========================================
