@@ -266,7 +266,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Auto-scroll chat to bottom
+# Auto-scroll chat to bottom + Keyboard shortcuts
 st.markdown("""
 <script>
     // Auto-scroll to bottom of chat on page load and after new messages
@@ -294,6 +294,31 @@ st.markdown("""
     // Immediate scroll
     setTimeout(scrollToBottom, 100);
     setTimeout(scrollToBottom, 500);
+
+    // Keyboard shortcuts (Claude/ChatGPT style)
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + K: Clear chat (focus on new conversation)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            const newConvButton = window.parent.document.querySelector('[data-testid="stButton"] button:contains("New Conversation")');
+            if (newConvButton) newConvButton.click();
+        }
+
+        // Ctrl/Cmd + /: Focus on chat input
+        if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+            e.preventDefault();
+            const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInput"]');
+            if (chatInput) chatInput.focus();
+        }
+
+        // Escape: Blur from chat input
+        if (e.key === 'Escape') {
+            const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInput"]');
+            if (chatInput && document.activeElement === chatInput) {
+                chatInput.blur();
+            }
+        }
+    });
 </script>
 """, unsafe_allow_html=True)
 
@@ -478,7 +503,7 @@ with st.sidebar:
     # ==================== CONVERSATIONS ====================
     st.subheader("Conversations")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("New Chat", use_container_width=True):
             st.session_state.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -495,6 +520,31 @@ with st.sidebar:
                     messages=st.session_state.messages
                 )
                 st.success("Conversation saved")
+
+    with col3:
+        if st.button("Export", use_container_width=True):
+            if st.session_state.messages:
+                # Generate markdown export
+                export_md = f"# ARGO Conversation Export\n\n"
+                export_md += f"**Project:** {project['name']}\n"
+                export_md += f"**Session:** {st.session_state.session_id}\n"
+                export_md += f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                export_md += "---\n\n"
+
+                for msg in st.session_state.messages:
+                    role_label = "**User:**" if msg['role'] == 'user' else "**Assistant:**"
+                    export_md += f"{role_label}\n\n{msg['content']}\n\n---\n\n"
+
+                # Show download button
+                st.download_button(
+                    label="📥 Download Markdown",
+                    data=export_md,
+                    file_name=f"argo_conversation_{st.session_state.session_id}.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
+            else:
+                st.info("No conversation to export")
 
     # List recent conversations
     try:
@@ -631,11 +681,13 @@ with st.sidebar:
 
     # ==================== DOCUMENT UPLOAD ====================
     st.subheader("Document Upload")
+    st.caption("💡 Drag & drop files here or click to browse")
 
     uploaded_file = st.file_uploader(
         "Select file",
         type=['pdf', 'docx', 'xlsx', 'txt', 'md', 'csv'],
-        help="Supported: PDF, DOCX, XLSX, TXT, MD, CSV"
+        help="Drag and drop files here, or click to browse. Supported formats: PDF, DOCX, XLSX, TXT, MD, CSV",
+        label_visibility="collapsed"
     )
 
     if uploaded_file:
@@ -893,9 +945,12 @@ with tab1:
                     else:
                         st.warning(f"Confidence: {conf:.0%} (Low - Limited information)")
 
-            # Action buttons (Copy, Feedback)
+            # Action buttons (Copy, Regenerate, Feedback)
             if msg['role'] == 'assistant':
-                col1, col2, col3, col4 = st.columns([1, 1, 1, 9])
+                # Check if this is the last assistant message
+                is_last_assistant = (idx == len(st.session_state.messages) - 1)
+
+                col1, col2, col3, col4, col5 = st.columns([1, 1.2, 1, 1, 7])
 
                 # Get previous user message
                 prev_query = ""
@@ -910,7 +965,7 @@ with tab1:
 
                 # Copy button - always visible
                 with col1:
-                    if st.button("Copy", key=f"copy_{idx}", help="Copy response to clipboard"):
+                    if st.button("📋 Copy", key=f"copy_{idx}", help="Copy response to clipboard"):
                         # Use pyperclip or alternative
                         try:
                             import pyperclip
@@ -921,10 +976,19 @@ with tab1:
                             st.info("Content copied! (install pyperclip for auto-copy)")
                             st.text_area("Copy this:", msg['content'], key=f"copy_text_{idx}", height=100)
 
+                # Regenerate button - only for last assistant message
+                with col2:
+                    if is_last_assistant and prev_query:
+                        if st.button("🔄 Regenerate", key=f"regen_{idx}", help="Regenerate this response"):
+                            # Remove last assistant message and regenerate
+                            st.session_state.messages = st.session_state.messages[:msg_idx]
+                            st.session_state.regenerate_query = prev_query
+                            st.rerun()
+
                 # Feedback buttons - only if not recorded
                 if 'feedback_recorded' not in msg:
-                    with col2:
-                        if st.button("Helpful", key=f"up_{idx}"):
+                    with col3:
+                        if st.button("👍", key=f"up_{idx}", help="Helpful"):
                             # Save positive feedback
                             try:
                                 memory_manager.save_feedback(
@@ -938,14 +1002,14 @@ with tab1:
                                 )
                                 # Mark as recorded to prevent duplicate feedback
                                 msg['feedback_recorded'] = True
-                                st.success("Thank you for your feedback!")
+                                st.success("Thank you!")
                                 st.rerun()
                             except Exception as e:
                                 logger.error(f"Failed to save feedback: {e}")
                                 st.error("Failed to save feedback")
 
-                    with col3:
-                        if st.button("Not Helpful", key=f"down_{idx}"):
+                    with col4:
+                        if st.button("👎", key=f"down_{idx}", help="Not helpful"):
                             # Save negative feedback
                             try:
                                 memory_manager.save_feedback(
@@ -959,16 +1023,26 @@ with tab1:
                                 )
                                 # Mark as recorded
                                 msg['feedback_recorded'] = True
-                                st.info("Feedback recorded. We'll improve!")
+                                st.info("Feedback recorded!")
                                 st.rerun()
                             except Exception as e:
                                 logger.error(f"Failed to save feedback: {e}")
                                 st.error("Failed to save feedback")
 
-    # Chat input
-    if prompt := st.chat_input("Ask about your project..."):
-        # Add user message
+    # Handle regenerate request
+    if 'regenerate_query' in st.session_state:
+        prompt = st.session_state.regenerate_query
+        del st.session_state.regenerate_query
+        # Re-add user message
         st.session_state.messages.append({'role': 'user', 'content': prompt})
+    else:
+        # Normal chat input
+        prompt = st.chat_input("Ask about your project...")
+
+    if prompt:
+        # Add user message if not already added (regenerate case)
+        if not st.session_state.messages or st.session_state.messages[-1]['content'] != prompt:
+            st.session_state.messages.append({'role': 'user', 'content': prompt})
 
         with st.chat_message('user'):
             st.markdown(prompt)

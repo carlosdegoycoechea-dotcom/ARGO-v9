@@ -12,7 +12,7 @@ from core.config import get_config
 from core.logger import get_logger, initialize_logging, LogMessages
 from core.unified_database import UnifiedDatabase
 from core.model_router import ModelRouter
-from core.llm_provider import LLMProviderManager
+from core.llm_provider import create_provider
 
 logger = get_logger("Bootstrap")
 
@@ -137,29 +137,68 @@ class ARGOBootstrap:
         # Get API keys
         openai_key = os.getenv("OPENAI_API_KEY")
         anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-        
+
         if not openai_key:
             raise ValueError("OPENAI_API_KEY required in .env")
-        
-        # Initialize provider manager
-        provider_manager = LLMProviderManager(
-            openai_api_key=openai_key,
-            anthropic_api_key=anthropic_key,
-            config=self.config
+
+        # Create providers dict
+        providers = {}
+
+        # OpenAI provider (required)
+        providers['openai'] = create_provider(
+            provider_name='openai',
+            api_key=openai_key,
+            default_model='gpt-4o-mini'
         )
-        
+
+        # Anthropic provider (optional)
+        if anthropic_key:
+            providers['anthropic'] = create_provider(
+                provider_name='anthropic',
+                api_key=anthropic_key,
+                default_model='claude-3-5-sonnet-20241022'
+            )
+
+        # Load router config
+        from core.model_router import RouterConfig
+        config_path = Path(self.config.root_path) / "config" / "model_router.json"
+
+        if config_path.exists():
+            router_config = RouterConfig.from_file(config_path)
+        else:
+            # Default config if file doesn't exist
+            logger.warning(f"Router config not found at {config_path}, using defaults")
+            router_config = RouterConfig(
+                pricing={
+                    "openai": {
+                        "gpt-4o-mini": {"input_per_1k": 0.00015, "output_per_1k": 0.0006},
+                        "gpt-4o": {"input_per_1k": 0.0025, "output_per_1k": 0.01},
+                    },
+                    "anthropic": {
+                        "claude-3-5-sonnet-20241022": {"input_per_1k": 0.003, "output_per_1k": 0.015},
+                    }
+                },
+                budget={"monthly_usd": 100.0},
+                defaults={
+                    "task_types": {
+                        "chat": {"provider": "openai", "model": "gpt-4o-mini", "temperature": 0.7, "max_tokens": 2000},
+                        "analysis": {"provider": "openai", "model": "gpt-4o", "temperature": 0.2, "max_tokens": 4000},
+                    }
+                }
+            )
+
         # Create router
         router = ModelRouter(
-            provider_manager=provider_manager,
-            db_manager=self.unified_db,
-            config=self.config
+            providers=providers,
+            config=router_config,
+            db_manager=self.unified_db
         )
-        
+
         logger.debug(
             f"Model Router: OpenAI={'enabled' if openai_key else 'disabled'}, "
             f"Anthropic={'enabled' if anthropic_key else 'disabled'}"
         )
-        
+
         return router
     
     def _init_library_manager(self):
