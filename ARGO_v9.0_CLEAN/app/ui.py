@@ -30,48 +30,54 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Professional Corporate CSS - Claude-inspired
+# Claude Code Dark Theme - No white backgrounds anywhere
 st.markdown("""
 <style>
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* Corporate color palette - Professional blues and grays */
+    /* Dark theme color palette - Claude Code inspired */
     :root {
-        --primary-color: #2d3748;
-        --secondary-color: #4a5568;
+        --bg-primary: #1a1a1a;
+        --bg-secondary: #242424;
+        --bg-tertiary: #2d2d2d;
+        --border-color: #3d3d3d;
+        --text-primary: #e0e0e0;
+        --text-secondary: #b0b0b0;
+        --text-tertiary: #808080;
         --accent-color: #667eea;
-        --accent-light: #7c3aed;
-        --surface: #f7fafc;
-        --border: #e2e8f0;
-        --text-primary: #1a202c;
-        --text-secondary: #718096;
+        --accent-hover: #7c3aed;
         --success: #48bb78;
         --warning: #ed8936;
         --error: #f56565;
     }
 
-    /* Typography */
+    /* Main app background - DARK */
+    .main, .block-container {
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+    }
+
+    /* Typography - Light text on dark */
     body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        color: var(--text-primary);
+        color: var(--text-primary) !important;
+        background-color: var(--bg-primary) !important;
     }
 
-    h1, h2, h3, h4 {
-        color: var(--primary-color);
-        font-weight: 600;
-        letter-spacing: -0.025em;
+    h1, h2, h3, h4, p, span, div {
+        color: var(--text-primary) !important;
     }
 
-    /* Sidebar styling - Dark background like Claude */
+    /* Sidebar styling - Dark */
     [data-testid="stSidebar"] {
-        background-color: #1a1a1a;
-        border-right: 1px solid #2d2d2d;
+        background-color: var(--bg-primary) !important;
+        border-right: 1px solid var(--border-color);
     }
 
     [data-testid="stSidebar"] * {
-        color: #e0e0e0 !important;
+        color: var(--text-primary) !important;
     }
 
     [data-testid="stSidebar"] h1,
@@ -81,104 +87,100 @@ st.markdown("""
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #b0b0b0 !important;
+        color: var(--text-secondary) !important;
         margin-top: 1.5rem;
         margin-bottom: 0.75rem;
     }
 
     [data-testid="stSidebar"] .stButton > button {
-        background-color: #2d2d2d;
-        color: #ffffff !important;
-        border: 1px solid #3d3d3d;
+        background-color: var(--bg-tertiary) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-color);
     }
 
     [data-testid="stSidebar"] .stButton > button:hover {
-        background-color: #3d3d3d;
+        background-color: var(--bg-secondary) !important;
     }
 
-    /* Buttons - Professional style */
+    /* Buttons - Dark theme */
     .stButton > button {
-        background-color: var(--accent-color);
-        color: white;
+        background-color: var(--accent-color) !important;
+        color: white !important;
         border-radius: 6px;
         border: none;
         padding: 0.5rem 1rem;
         font-weight: 500;
         transition: all 0.2s;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     }
 
     .stButton > button:hover {
-        background-color: var(--accent-light);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        background-color: var(--accent-hover) !important;
         transform: translateY(-1px);
     }
 
-    /* Secondary buttons */
-    .stButton > button[kind="secondary"] {
-        background-color: white;
-        color: var(--text-primary);
-        border: 1px solid var(--border);
-    }
-
-    .stButton > button[kind="secondary"]:hover {
-        background-color: var(--surface);
-    }
-
-    /* Input fields */
+    /* Input fields - Dark */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stSelectbox > div > div > select {
+        background-color: var(--bg-tertiary) !important;
+        color: var(--text-primary) !important;
         border-radius: 6px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--border-color);
         padding: 0.5rem 0.75rem;
     }
 
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus {
         border-color: var(--accent-color);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        background-color: var(--bg-secondary) !important;
     }
 
-    /* Expander */
+    /* Expander - Dark */
     .streamlit-expanderHeader {
-        background-color: var(--surface);
+        background-color: var(--bg-tertiary) !important;
         border-radius: 6px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--border-color);
         font-weight: 500;
-        color: var(--text-primary);
+        color: var(--text-primary) !important;
     }
 
-    /* Chat messages */
+    /* Chat messages - DARK BACKGROUNDS */
     .stChatMessage {
-        background-color: white;
+        background-color: var(--bg-secondary) !important;
         border-radius: 8px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--border-color);
         padding: 1rem;
         margin-bottom: 0.5rem;
     }
 
-    /* Chat input styling - Claude-like */
+    .stChatMessage p, .stChatMessage span, .stChatMessage div {
+        color: var(--text-primary) !important;
+    }
+
+    /* Chat input - Dark, ALWAYS at bottom */
     [data-testid="stChatInput"] {
+        background-color: var(--bg-tertiary) !important;
         border-radius: 8px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--border-color);
         padding: 0.75rem 1rem;
-        margin-top: 1rem;
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 100 !important;
+    }
+
+    [data-testid="stChatInput"] input {
+        background-color: var(--bg-tertiary) !important;
+        color: var(--text-primary) !important;
     }
 
     [data-testid="stChatInput"]:focus-within {
         border-color: var(--accent-color);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        background-color: var(--bg-secondary) !important;
     }
 
-    /* Ensure chat input is visible at bottom of tab */
+    /* Ensure proper spacing */
     .main .block-container {
         padding-bottom: 2rem;
-    }
-
-    /* Chat container scrolling */
-    [data-testid="stVerticalBlock"] {
-        overflow-y: auto;
     }
 
     /* Metrics */
@@ -460,7 +462,7 @@ with st.sidebar:
                                 label_visibility="collapsed"
                             )
                         with col2:
-                            if st.button("✓", key=f"save_rename_{conv['id']}"):
+                            if st.button("Save", key=f"save_rename_{conv['id']}"):
                                 try:
                                     unified_db.update_conversation_title(conv['id'], new_title)
                                     st.session_state[rename_key] = False
@@ -488,11 +490,11 @@ with st.sidebar:
                                     st.session_state.session_id = conv['session_id']
                                     st.rerun()
                         with col2:
-                            if st.button("✏", key=f"rename_{conv['id']}"):
+                            if st.button("R", key=f"rename_{conv['id']}"):
                                 st.session_state[rename_key] = True
                                 st.rerun()
                         with col3:
-                            if st.button("×", key=f"del_conv_{conv['id']}"):
+                            if st.button("X", key=f"del_conv_{conv['id']}"):
                                 try:
                                     unified_db.delete_conversation(conv['id'])
                                     st.success("Deleted!")
@@ -800,12 +802,12 @@ st.title("ARGO Enterprise PMO Platform")
 st.caption("Professional project management and knowledge assistance")
 
 # Tabs
-tab1, tab2, tab3, tab4 = st.tabs(["Chat", "Documents", "Analytics", "Conversations"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Chat", "Documents", "Analytics", "Conversations & Notes", "Project"])
 
 # ==================== TAB 1: CHAT ====================
 with tab1:
     # Show current project at the top
-    st.subheader(f"💬 {project['name']}")
+    st.subheader(f"{project['name']}")
     st.caption(f"Project Assistant • {project['project_type'].title()}")
     st.divider()
 
@@ -911,20 +913,31 @@ with tab1:
                     # Web search (if enabled and query triggers it)
                     web_context = ""
                     if search_settings.get('enable_web_search', False):
-                        from core.web_search import WebSearchEngine, should_use_web_search
+                        try:
+                            from core.web_search import WebSearchEngine, should_use_web_search
 
-                        if should_use_web_search(prompt):
+                            # Always try web search for user queries
                             try:
                                 web_engine = WebSearchEngine(
                                     provider=search_settings.get('web_provider', 'duckduckgo')
                                 )
-                                web_results = web_engine.search(prompt, count=3)
+                                logger.info(f"Performing web search with provider: {search_settings.get('web_provider')}")
 
-                                if web_results:
+                                web_results = web_engine.search(prompt, count=5)
+
+                                if web_results and len(web_results) > 0:
                                     web_context = web_engine.format_results_for_context(web_results)
-                                    st.info(f"Web search performed ({len(web_results)} results)")
+                                    st.success(f"Web search completed: {len(web_results)} results found")
+                                    logger.info(f"Web search returned {len(web_results)} results")
+                                else:
+                                    st.warning("Web search returned no results")
+                                    logger.warning("Web search returned empty results")
                             except Exception as e:
-                                logger.warning(f"Web search failed: {e}")
+                                st.error(f"Web search error: {str(e)}")
+                                logger.error(f"Web search failed: {e}", exc_info=True)
+                        except ImportError as e:
+                            st.warning(f"Web search not available: {e}")
+                            logger.warning(f"WebSearchEngine import failed: {e}")
 
                     # Search RAG
                     results, search_metadata = rag_engine.search(
@@ -1166,7 +1179,7 @@ with tab3:
         except Exception as e:
             st.warning(f"Usage data unavailable: {e}")
 
-# ==================== TAB 4: CONVERSATIONS ====================
+# ==================== TAB 4: CONVERSATIONS & NOTES ====================
 with tab4:
     st.subheader("Conversation History")
     st.caption("View, rename, load, and manage all your conversations")
@@ -1189,7 +1202,7 @@ with tab4:
                 rename_key = f"renaming_tab4_{conv['id']}"
                 is_renaming = st.session_state.get(rename_key, False)
 
-                with st.expander(f"💬 {display_title} • {created} • {message_count} messages"):
+                with st.expander(f"{display_title} • {created} • {message_count} messages"):
                     if is_renaming:
                         # Rename mode
                         st.write("**Rename Conversation**")
@@ -1203,7 +1216,7 @@ with tab4:
                                 label_visibility="collapsed"
                             )
                         with col2:
-                            if st.button("✓ Save", key=f"save_rename_tab4_{conv['id']}"):
+                            if st.button("Save", key=f"save_rename_tab4_{conv['id']}"):
                                 try:
                                     unified_db.update_conversation_title(conv['id'], new_title)
                                     st.session_state[rename_key] = False
@@ -1212,7 +1225,7 @@ with tab4:
                                 except Exception as e:
                                     st.error(f"Error: {e}")
                         with col3:
-                            if st.button("✗ Cancel", key=f"cancel_rename_tab4_{conv['id']}"):
+                            if st.button("Cancel", key=f"cancel_rename_tab4_{conv['id']}"):
                                 st.session_state[rename_key] = False
                                 st.rerun()
                     else:
@@ -1223,7 +1236,7 @@ with tab4:
                         col1, col2, col3 = st.columns([2, 2, 2])
 
                         with col1:
-                            if st.button("📥 Load", key=f"load_full_{conv['id']}", use_container_width=True):
+                            if st.button("Load", key=f"load_full_{conv['id']}", use_container_width=True):
                                 loaded_messages = unified_db.load_conversation(
                                     project_id=project['id'],
                                     session_id=conv['session_id']
@@ -1237,12 +1250,12 @@ with tab4:
                                     st.warning("No messages found")
 
                         with col2:
-                            if st.button("✏ Rename", key=f"rename_full_{conv['id']}", use_container_width=True):
+                            if st.button("Rename", key=f"rename_full_{conv['id']}", use_container_width=True):
                                 st.session_state[rename_key] = True
                                 st.rerun()
 
                         with col3:
-                            if st.button("🗑 Delete", key=f"del_full_{conv['id']}", use_container_width=True):
+                            if st.button("Delete", key=f"del_full_{conv['id']}", use_container_width=True):
                                 try:
                                     unified_db.delete_conversation(conv['id'])
                                     st.success("Conversation deleted!")
@@ -1255,6 +1268,201 @@ with tab4:
     except Exception as e:
         st.error(f"Error loading conversations: {e}")
         logger.error(f"Tab 4 conversation error: {e}", exc_info=True)
+
+# ==================== TAB 5: PROJECT ====================
+with tab5:
+    st.subheader("Project Settings")
+    st.caption("View and manage project configuration")
+
+    # ==================== PROJECT INFO ====================
+    st.write("### Basic Information")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Project Name", project['name'])
+        st.metric("Project Type", project['project_type'].title())
+        st.metric("Status", project['status'].title())
+
+    with col2:
+        created_at = project.get('created_at', 'Unknown')
+        st.metric("Created", created_at)
+
+        # Count documents and chunks
+        try:
+            files = unified_db.get_files(project_id=project['id'])
+            doc_count = len(files)
+
+            # Count total chunks
+            chunk_count = 0
+            for file in files:
+                chunk_count += file.get('chunk_count', 0)
+
+            st.metric("Documents", doc_count)
+            st.metric("Chunks", chunk_count)
+        except Exception as e:
+            logger.warning(f"Could not count docs/chunks: {e}")
+            st.metric("Documents", "N/A")
+            st.metric("Chunks", "N/A")
+
+    st.divider()
+
+    # ==================== GOOGLE DRIVE ====================
+    st.write("### Google Drive Integration")
+
+    # Get current metadata
+    metadata = project.get('metadata', {})
+    if isinstance(metadata, str):
+        import json
+        try:
+            metadata = json.loads(metadata)
+        except:
+            metadata = {}
+
+    drive_enabled = metadata.get('drive_enabled', False)
+    current_drive_id = metadata.get('drive_folder_id', '')
+
+    # Show current status
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        if drive_enabled and current_drive_id:
+            st.success(f"Drive sync enabled: {current_drive_id}")
+        else:
+            st.info("Drive sync not configured")
+
+    with col2:
+        sync_status = metadata.get('sync_status', 'Not synced')
+        last_sync = metadata.get('last_sync', 'Never')
+        st.caption(f"Status: {sync_status}")
+        st.caption(f"Last sync: {last_sync}")
+
+    # Edit Drive configuration
+    with st.expander("Configure Google Drive"):
+        with st.form("drive_config_form"):
+            enable_sync = st.checkbox("Enable Drive sync", value=drive_enabled)
+            new_drive_id = st.text_input(
+                "Drive Folder ID",
+                value=current_drive_id,
+                placeholder="Enter folder ID from Google Drive URL",
+                help="Example: 1aBcD3FgH5iJkLmN6oPqRsTuVwXyZ"
+            )
+
+            if st.form_submit_button("Save Drive Configuration", use_container_width=True):
+                try:
+                    new_metadata = metadata.copy()
+                    new_metadata['drive_enabled'] = enable_sync
+                    new_metadata['drive_folder_id'] = new_drive_id if enable_sync else ''
+
+                    unified_db.update_project(
+                        project_id=project['id'],
+                        metadata=new_metadata
+                    )
+                    st.success("Drive configuration updated!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error updating Drive config: {e}")
+                    logger.error(f"Drive config update failed: {e}", exc_info=True)
+
+    # Force sync button
+    if drive_enabled and current_drive_id:
+        if st.button("Force Synchronization", use_container_width=True):
+            try:
+                # Import and run drive sync
+                from core.drive_manager import DriveManager
+                drive_manager = DriveManager(credentials_path='config/google_credentials.json')
+
+                st.info("Starting synchronization...")
+
+                # Sync files
+                files = drive_manager.sync_folder(
+                    folder_id=current_drive_id,
+                    project_id=project['id']
+                )
+
+                # Update metadata
+                new_metadata = metadata.copy()
+                new_metadata['sync_status'] = 'Synced'
+                new_metadata['last_sync'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                unified_db.update_project(project_id=project['id'], metadata=new_metadata)
+
+                st.success(f"Synchronized {len(files)} files successfully!")
+                st.rerun()
+            except ImportError:
+                st.warning("Drive sync not available - DriveManager module not found")
+            except Exception as e:
+                st.error(f"Synchronization failed: {e}")
+                logger.error(f"Drive sync failed: {e}", exc_info=True)
+
+    st.divider()
+
+    # ==================== EDIT PROJECT ====================
+    st.write("### Edit Project")
+
+    with st.expander("Edit Project Details"):
+        with st.form("edit_project_form"):
+            new_desc = st.text_area(
+                "Description",
+                value=project.get('description', ''),
+                placeholder="Project description"
+            )
+            new_status = st.selectbox(
+                "Status",
+                options=['active', 'archived', 'completed'],
+                index=['active', 'archived', 'completed'].index(project['status']) if project['status'] in ['active', 'archived', 'completed'] else 0
+            )
+
+            if st.form_submit_button("Save Changes", use_container_width=True):
+                try:
+                    unified_db.update_project(
+                        project_id=project['id'],
+                        description=new_desc,
+                        status=new_status
+                    )
+                    st.success("Project updated successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error updating project: {e}")
+                    logger.error(f"Project update failed: {e}", exc_info=True)
+
+    st.divider()
+
+    # ==================== DANGER ZONE ====================
+    st.write("### Danger Zone")
+
+    with st.expander("Delete Project", expanded=False):
+        st.warning("This action cannot be undone. All project data, documents, conversations, and embeddings will be permanently deleted.")
+
+        # Two-step confirmation
+        if 'confirm_delete' not in st.session_state:
+            st.session_state.confirm_delete = False
+
+        if not st.session_state.confirm_delete:
+            if st.button("I want to delete this project", type="secondary"):
+                st.session_state.confirm_delete = True
+                st.rerun()
+        else:
+            st.error("Are you absolutely sure? This cannot be undone!")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Yes, DELETE permanently", type="primary"):
+                    try:
+                        # Delete project
+                        unified_db.delete_project(project['id'])
+                        st.success("Project deleted successfully")
+
+                        # Clear session state
+                        st.session_state.clear()
+
+                        # Reload page
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error deleting project: {e}")
+                        logger.error(f"Project deletion failed: {e}", exc_info=True)
+
+            with col2:
+                if st.button("Cancel", type="secondary"):
+                    st.session_state.confirm_delete = False
+                    st.rerun()
 
 # Footer
 st.divider()
