@@ -106,7 +106,7 @@ Hypothetical answer:"""
         
         try:
             response = self.router.run(
-                task_type="summary",
+                task_type="chat",
                 project_id=self.project_id,
                 messages=[{"role": "user", "content": prompt}]
             )

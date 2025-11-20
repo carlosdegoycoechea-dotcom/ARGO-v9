@@ -64,10 +64,14 @@ st.markdown("""
         letter-spacing: -0.025em;
     }
 
-    /* Sidebar styling */
+    /* Sidebar styling - Dark background like Claude */
     [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid var(--border);
+        background-color: #1a1a1a;
+        border-right: 1px solid #2d2d2d;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #e0e0e0 !important;
     }
 
     [data-testid="stSidebar"] h1,
@@ -77,9 +81,19 @@ st.markdown("""
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--text-secondary);
+        color: #b0b0b0 !important;
         margin-top: 1.5rem;
         margin-bottom: 0.75rem;
+    }
+
+    [data-testid="stSidebar"] .stButton > button {
+        background-color: #2d2d2d;
+        color: #ffffff !important;
+        border: 1px solid #3d3d3d;
+    }
+
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background-color: #3d3d3d;
     }
 
     /* Buttons - Professional style */
@@ -144,20 +158,27 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
 
-    /* Chat input fixed at bottom */
-    .stChatInputContainer {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: linear-gradient(to top, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 100%);
-        padding: 1rem 2rem 2rem 2rem;
-        border-top: 1px solid var(--border);
-        z-index: 999;
+    /* Chat input styling - Claude-like */
+    [data-testid="stChatInput"] {
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        padding: 0.75rem 1rem;
+        margin-top: 1rem;
     }
 
+    [data-testid="stChatInput"]:focus-within {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    /* Ensure chat input is visible at bottom of tab */
     .main .block-container {
-        padding-bottom: 8rem;
+        padding-bottom: 2rem;
+    }
+
+    /* Chat container scrolling */
+    [data-testid="stVerticalBlock"] {
+        overflow-y: auto;
     }
 
     /* Metrics */
@@ -348,33 +369,41 @@ with st.sidebar:
 
             st.caption("Google Drive Integration")
             enable_drive = st.checkbox("Enable Drive sync", help="Requires google_credentials.json")
-            drive_folder_id = st.text_input(
-                "Drive Folder ID",
-                placeholder="Folder ID from Drive URL",
-                disabled=not enable_drive
-            )
+            if enable_drive:
+                drive_folder_id = st.text_input(
+                    "Drive Folder ID",
+                    placeholder="Enter the folder ID from Google Drive URL",
+                    help="Example: 1aBcD3FgH5iJkLmN6oPqRsTuVwXyZ"
+                )
+            else:
+                drive_folder_id = ""
 
             submit_button = st.form_submit_button("Create Project", use_container_width=True)
 
             if submit_button:
                 if new_project_name:
-                    try:
-                        project_id = unified_db.create_project(
-                            name=new_project_name,
-                            project_type=new_project_type,
-                            description=new_project_desc
-                        )
-
-                        if enable_drive and drive_folder_id:
-                            unified_db.update_project(
-                                project_id=project_id,
-                                metadata={'drive_enabled': True, 'drive_folder_id': drive_folder_id}
+                    # Check if project already exists
+                    if new_project_name in project_names:
+                        st.error(f"Project '{new_project_name}' already exists. Please choose a different name.")
+                    else:
+                        try:
+                            project_id = unified_db.create_project(
+                                name=new_project_name,
+                                project_type=new_project_type,
+                                description=new_project_desc
                             )
 
-                        st.success(f"Project '{new_project_name}' created successfully")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                            if enable_drive and drive_folder_id:
+                                unified_db.update_project(
+                                    project_id=project_id,
+                                    metadata={'drive_enabled': True, 'drive_folder_id': drive_folder_id}
+                                )
+
+                            st.success(f"Project '{new_project_name}' created successfully")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error creating project: {str(e)}")
+                            logger.error(f"Project creation failed: {e}", exc_info=True)
                 else:
                     st.warning("Please enter a project name")
 
@@ -415,23 +444,61 @@ with st.sidebar:
         if conversations:
             with st.expander(f"Recent Conversations ({len(conversations)})"):
                 for conv in conversations:
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        # Extract date from session_id
-                        session_label = conv['session_id'].split('_')[-1] if '_' in conv['session_id'] else conv['session_id'][:8]
-                        if st.button(f"Session {session_label}", key=f"load_{conv['id']}", use_container_width=True):
-                            loaded_messages = unified_db.load_conversation(
-                                project_id=project['id'],
-                                session_id=conv['session_id']
+                    # Check if this conversation is being renamed
+                    rename_key = f"renaming_{conv['id']}"
+                    is_renaming = st.session_state.get(rename_key, False)
+
+                    if is_renaming:
+                        # Show rename input
+                        current_title = conv.get('title', '') or conv['session_id']
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            new_title = st.text_input(
+                                "New title",
+                                value=current_title,
+                                key=f"rename_input_{conv['id']}",
+                                label_visibility="collapsed"
                             )
-                            if loaded_messages:
-                                st.session_state.messages = loaded_messages
-                                st.session_state.session_id = conv['session_id']
+                        with col2:
+                            if st.button("✓", key=f"save_rename_{conv['id']}"):
+                                try:
+                                    unified_db.update_conversation_title(conv['id'], new_title)
+                                    st.session_state[rename_key] = False
+                                    st.success("Renamed!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+                    else:
+                        # Normal display with load, rename, and delete buttons
+                        col1, col2, col3 = st.columns([3, 1, 1])
+                        with col1:
+                            # Show title if available, otherwise session_id
+                            display_title = conv.get('title', None)
+                            if not display_title or display_title.strip() == '':
+                                session_label = conv['session_id'].split('_')[-1] if '_' in conv['session_id'] else conv['session_id'][:8]
+                                display_title = f"Session {session_label}"
+
+                            if st.button(display_title, key=f"load_{conv['id']}", use_container_width=True):
+                                loaded_messages = unified_db.load_conversation(
+                                    project_id=project['id'],
+                                    session_id=conv['session_id']
+                                )
+                                if loaded_messages:
+                                    st.session_state.messages = loaded_messages
+                                    st.session_state.session_id = conv['session_id']
+                                    st.rerun()
+                        with col2:
+                            if st.button("✏", key=f"rename_{conv['id']}"):
+                                st.session_state[rename_key] = True
                                 st.rerun()
-                    with col2:
-                        if st.button("×", key=f"del_conv_{conv['id']}"):
-                            # Delete conversation logic
-                            st.rerun()
+                        with col3:
+                            if st.button("×", key=f"del_conv_{conv['id']}"):
+                                try:
+                                    unified_db.delete_conversation(conv['id'])
+                                    st.success("Deleted!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
     except Exception as e:
         logger.warning(f"Could not load conversations: {e}")
 
@@ -681,9 +748,23 @@ with st.sidebar:
         st.subheader("System Monitor")
 
         # Project size
-        project_path = Path(project['path'])
-        total_size = sum(f.stat().st_size for f in project_path.rglob('*') if f.is_file())
-        size_mb = total_size / (1024 * 1024)
+        try:
+            # Get project path - construct if not directly available
+            if 'path' in project and project['path']:
+                project_path = Path(project['path'])
+            else:
+                # Construct from base_path if available
+                base_path = Path(project.get('base_path', 'projects'))
+                project_path = base_path / project['id']
+
+            if project_path.exists():
+                total_size = sum(f.stat().st_size for f in project_path.rglob('*') if f.is_file())
+                size_mb = total_size / (1024 * 1024)
+            else:
+                size_mb = 0.0
+        except Exception as e:
+            logger.warning(f"Could not calculate project size: {e}")
+            size_mb = 0.0
 
         col1, col2 = st.columns(2)
         with col1:
@@ -723,11 +804,16 @@ tab1, tab2, tab3, tab4 = st.tabs(["Chat", "Documents", "Analytics", "Conversatio
 
 # ==================== TAB 1: CHAT ====================
 with tab1:
-    st.subheader("Project Assistant")
+    # Show current project at the top
+    st.subheader(f"💬 {project['name']}")
+    st.caption(f"Project Assistant • {project['project_type'].title()}")
+    st.divider()
 
     # Display message history
     for idx, msg in enumerate(st.session_state.messages):
-        with st.chat_message(msg['role']):
+        # Use simple avatars without emojis - Claude style
+        avatar = "assistant" if msg['role'] == 'assistant' else "user"
+        with st.chat_message(msg['role'], avatar=avatar):
             st.markdown(msg['content'])
 
             # Show metadata if exists
@@ -1083,39 +1169,92 @@ with tab3:
 # ==================== TAB 4: CONVERSATIONS ====================
 with tab4:
     st.subheader("Conversation History")
+    st.caption("View, rename, load, and manage all your conversations")
 
     try:
         all_conversations = unified_db.list_conversations(project_id=project['id'], limit=50)
 
         if all_conversations:
             for conv in all_conversations:
-                session_label = conv['session_id']
-                created = conv.get('created_at', 'Unknown')
+                # Get conversation display title
+                display_title = conv.get('title', None)
+                if not display_title or display_title.strip() == '':
+                    session_label = conv['session_id'].split('_')[-1] if '_' in conv['session_id'] else conv['session_id'][:12]
+                    display_title = f"Session {session_label}"
 
-                with st.expander(f"Session {session_label} - {created}"):
-                    col1, col2 = st.columns([5, 1])
+                created = conv.get('started_at', 'Unknown')
+                message_count = conv.get('message_count', 0)
 
-                    with col1:
-                        if st.button("Load Conversation", key=f"load_full_{conv['id']}"):
-                            loaded_messages = unified_db.load_conversation(
-                                project_id=project['id'],
-                                session_id=conv['session_id']
+                # Check if this conversation is being renamed
+                rename_key = f"renaming_tab4_{conv['id']}"
+                is_renaming = st.session_state.get(rename_key, False)
+
+                with st.expander(f"💬 {display_title} • {created} • {message_count} messages"):
+                    if is_renaming:
+                        # Rename mode
+                        st.write("**Rename Conversation**")
+                        current_title = conv.get('title', '') or conv['session_id']
+                        col1, col2, col3 = st.columns([4, 1, 1])
+                        with col1:
+                            new_title = st.text_input(
+                                "New title",
+                                value=current_title,
+                                key=f"rename_input_tab4_{conv['id']}",
+                                label_visibility="collapsed"
                             )
-                            if loaded_messages:
-                                st.session_state.messages = loaded_messages
-                                st.session_state.session_id = conv['session_id']
-                                st.success("Conversation loaded")
+                        with col2:
+                            if st.button("✓ Save", key=f"save_rename_tab4_{conv['id']}"):
+                                try:
+                                    unified_db.update_conversation_title(conv['id'], new_title)
+                                    st.session_state[rename_key] = False
+                                    st.success("Renamed successfully!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+                        with col3:
+                            if st.button("✗ Cancel", key=f"cancel_rename_tab4_{conv['id']}"):
+                                st.session_state[rename_key] = False
+                                st.rerun()
+                    else:
+                        # Normal mode - show conversation info and actions
+                        if conv.get('summary'):
+                            st.info(f"**Summary:** {conv['summary']}")
+
+                        col1, col2, col3 = st.columns([2, 2, 2])
+
+                        with col1:
+                            if st.button("📥 Load", key=f"load_full_{conv['id']}", use_container_width=True):
+                                loaded_messages = unified_db.load_conversation(
+                                    project_id=project['id'],
+                                    session_id=conv['session_id']
+                                )
+                                if loaded_messages:
+                                    st.session_state.messages = loaded_messages
+                                    st.session_state.session_id = conv['session_id']
+                                    st.success("Conversation loaded! Check the Chat tab.")
+                                    st.rerun()
+                                else:
+                                    st.warning("No messages found")
+
+                        with col2:
+                            if st.button("✏ Rename", key=f"rename_full_{conv['id']}", use_container_width=True):
+                                st.session_state[rename_key] = True
                                 st.rerun()
 
-                    with col2:
-                        if st.button("Delete", key=f"del_full_{conv['id']}"):
-                            # Implement delete conversation
-                            st.info("Delete functionality pending")
+                        with col3:
+                            if st.button("🗑 Delete", key=f"del_full_{conv['id']}", use_container_width=True):
+                                try:
+                                    unified_db.delete_conversation(conv['id'])
+                                    st.success("Conversation deleted!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error deleting: {e}")
         else:
-            st.info("No saved conversations yet")
+            st.info("No saved conversations yet. Start chatting to create your first conversation!")
 
     except Exception as e:
         st.error(f"Error loading conversations: {e}")
+        logger.error(f"Tab 4 conversation error: {e}", exc_info=True)
 
 # Footer
 st.divider()

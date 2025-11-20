@@ -568,9 +568,27 @@ class UnifiedDatabase:
                 ORDER BY updated_at DESC
                 LIMIT ?
             """, (project_id, limit))
-            
+
             return [dict(row) for row in cur.fetchall()]
-    
+
+    def delete_conversation(self, conversation_id: int):
+        """Elimina una conversación"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+            logger.info(f"Conversation deleted [id={conversation_id}]")
+
+    def update_conversation_title(self, conversation_id: int, title: str):
+        """Actualiza el título de una conversación"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE conversations
+                SET title = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (title, conversation_id))
+            logger.info(f"Conversation title updated [id={conversation_id}, title={title}]")
+
     # ==========================================
     # ANÁLISIS
     # ==========================================
