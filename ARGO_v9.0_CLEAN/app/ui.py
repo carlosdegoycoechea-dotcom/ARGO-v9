@@ -868,9 +868,9 @@ with tab1:
                     else:
                         st.warning(f"Confidence: {conf:.0%} (Low - Limited information)")
 
-            # Feedback buttons
-            if msg['role'] == 'assistant' and 'feedback_recorded' not in msg:
-                col1, col2, col3 = st.columns([1, 1, 10])
+            # Action buttons (Copy, Feedback)
+            if msg['role'] == 'assistant':
+                col1, col2, col3, col4 = st.columns([1, 1, 1, 9])
 
                 # Get previous user message
                 prev_query = ""
@@ -883,47 +883,62 @@ with tab1:
                 sources = ", ".join(metadata.get('sources', [])) if metadata.get('sources') else None
                 confidence = metadata.get('confidence')
 
+                # Copy button - always visible
                 with col1:
-                    if st.button("Helpful", key=f"up_{idx}"):
-                        # Save positive feedback
+                    if st.button("Copy", key=f"copy_{idx}", help="Copy response to clipboard"):
+                        # Use pyperclip or alternative
                         try:
-                            memory_manager.save_feedback(
-                                project_id=project['id'],
-                                session_id=st.session_state.session_id,
-                                query=prev_query,
-                                response=msg['content'],
-                                rating=1,  # Helpful
-                                sources=sources,
-                                confidence=confidence
-                            )
-                            # Mark as recorded to prevent duplicate feedback
-                            msg['feedback_recorded'] = True
-                            st.success("Thank you for your feedback!")
-                            st.rerun()
-                        except Exception as e:
-                            logger.error(f"Failed to save feedback: {e}")
-                            st.error("Failed to save feedback")
+                            import pyperclip
+                            pyperclip.copy(msg['content'])
+                            st.success("Copied!")
+                        except ImportError:
+                            # Fallback: show content in text area for manual copy
+                            st.info("Content copied! (install pyperclip for auto-copy)")
+                            st.text_area("Copy this:", msg['content'], key=f"copy_text_{idx}", height=100)
 
-                with col2:
-                    if st.button("Not Helpful", key=f"down_{idx}"):
-                        # Save negative feedback
-                        try:
-                            memory_manager.save_feedback(
-                                project_id=project['id'],
-                                session_id=st.session_state.session_id,
-                                query=prev_query,
-                                response=msg['content'],
-                                rating=-1,  # Not helpful
-                                sources=sources,
-                                confidence=confidence
-                            )
-                            # Mark as recorded
-                            msg['feedback_recorded'] = True
-                            st.info("Feedback recorded. We'll improve!")
-                            st.rerun()
-                        except Exception as e:
-                            logger.error(f"Failed to save feedback: {e}")
-                            st.error("Failed to save feedback")
+                # Feedback buttons - only if not recorded
+                if 'feedback_recorded' not in msg:
+                    with col2:
+                        if st.button("Helpful", key=f"up_{idx}"):
+                            # Save positive feedback
+                            try:
+                                memory_manager.save_feedback(
+                                    project_id=project['id'],
+                                    session_id=st.session_state.session_id,
+                                    query=prev_query,
+                                    response=msg['content'],
+                                    rating=1,  # Helpful
+                                    sources=sources,
+                                    confidence=confidence
+                                )
+                                # Mark as recorded to prevent duplicate feedback
+                                msg['feedback_recorded'] = True
+                                st.success("Thank you for your feedback!")
+                                st.rerun()
+                            except Exception as e:
+                                logger.error(f"Failed to save feedback: {e}")
+                                st.error("Failed to save feedback")
+
+                    with col3:
+                        if st.button("Not Helpful", key=f"down_{idx}"):
+                            # Save negative feedback
+                            try:
+                                memory_manager.save_feedback(
+                                    project_id=project['id'],
+                                    session_id=st.session_state.session_id,
+                                    query=prev_query,
+                                    response=msg['content'],
+                                    rating=-1,  # Not helpful
+                                    sources=sources,
+                                    confidence=confidence
+                                )
+                                # Mark as recorded
+                                msg['feedback_recorded'] = True
+                                st.info("Feedback recorded. We'll improve!")
+                                st.rerun()
+                            except Exception as e:
+                                logger.error(f"Failed to save feedback: {e}")
+                                st.error("Failed to save feedback")
 
     # Chat input
     if prompt := st.chat_input("Ask about your project..."):
@@ -995,8 +1010,15 @@ with tab1:
                     else:
                         context = rag_context
 
-                    # Build system prompt
+                    # Build system prompt with current date
+                    from datetime import datetime
+                    current_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    current_day = datetime.now().strftime("%A, %B %d, %Y")
+
                     system_prompt = f"""You are ARGO, an enterprise project management assistant.
+
+IMPORTANT: Today's date is {current_day} ({current_date}).
+You have access to current date and time information. Use this for timeline analysis, deadline tracking, and date-related queries.
 
 Use the following context to answer the user's question accurately and professionally.
 
@@ -1008,7 +1030,9 @@ Guidelines:
 - Cite sources when appropriate
 - If information is not in context, state this clearly
 - Use proper business terminology
-- Do not use emojis in your responses"""
+- Do not use emojis in your responses
+- When asked about current date/time, use the date provided above
+- For deadline analysis, calculate days remaining using today's date"""
 
                     # Prepare conversation history with automatic summarization
                     # This prevents token limit errors in long conversations
