@@ -126,7 +126,8 @@ def extract_and_chunk(
     chunk_dicts = []
     for i, chunk_text in enumerate(chunks):
         chunk_dict = {
-            "text": chunk_text,
+            "content": chunk_text,  # Changed from "text" to "content" for UI compatibility
+            "text": chunk_text,      # Keep "text" for backward compatibility
             "metadata": {
                 **base_metadata,
                 "chunk_index": i,

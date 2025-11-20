@@ -316,9 +316,62 @@ class UnifiedDatabase:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (project_id, name, base_path, description, project_type, json.dumps(metadata or {})))
             
-            logger.info(f"Proyecto creado: {name}", project_id=project_id, project_type=project_type)
+            logger.info(f"Proyecto creado: {name} [project_id={project_id}, type={project_type}]")
             return project_id
-    
+
+    def update_project(
+        self,
+        project_id: str,
+        name: str = None,
+        description: str = None,
+        status: str = None,
+        last_accessed: str = None,
+        metadata: Dict = None
+    ):
+        """
+        Actualiza información de un proyecto
+
+        Args:
+            project_id: ID del proyecto
+            name: Nuevo nombre (opcional)
+            description: Nueva descripción (opcional)
+            status: Nuevo status (opcional)
+            last_accessed: Timestamp de último acceso (opcional)
+            metadata: Metadata adicional (opcional)
+        """
+        with self._get_connection() as conn:
+            updates = []
+            params = []
+
+            if name is not None:
+                updates.append("name = ?")
+                params.append(name)
+
+            if description is not None:
+                updates.append("description = ?")
+                params.append(description)
+
+            if status is not None:
+                updates.append("status = ?")
+                params.append(status)
+
+            if last_accessed is not None:
+                updates.append("last_accessed = ?")
+                params.append(last_accessed)
+
+            if metadata is not None:
+                updates.append("metadata_json = ?")
+                params.append(json.dumps(metadata))
+
+            # Always update updated_at
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+
+            if updates:
+                params.append(project_id)
+                query = f"UPDATE projects SET {', '.join(updates)} WHERE id = ?"
+                conn.execute(query, params)
+                logger.debug(f"Proyecto actualizado [project_id={project_id}]")
+
     def get_project(self, name: str = None, project_id: str = None) -> Optional[Dict]:
         """
         Obtiene información de un proyecto por nombre o ID (F1 Architecture)
@@ -338,7 +391,7 @@ class UnifiedDatabase:
                 return None
             
             row = cur.fetchone()
-            
+
             if row:
                 # Actualizar last_accessed
                 update_id = row['id']
@@ -346,7 +399,18 @@ class UnifiedDatabase:
                     "UPDATE projects SET last_accessed = CURRENT_TIMESTAMP WHERE id = ?",
                     (update_id,)
                 )
-                return dict(row)
+
+                # Convert to dict and parse metadata_json
+                project_dict = dict(row)
+                if 'metadata_json' in project_dict and project_dict['metadata_json']:
+                    try:
+                        project_dict['metadata'] = json.loads(project_dict['metadata_json'])
+                    except (json.JSONDecodeError, TypeError):
+                        project_dict['metadata'] = {}
+                else:
+                    project_dict['metadata'] = {}
+
+                return project_dict
             return None
     
     def list_projects(self, active_only: bool = True, project_type: str = None) -> List[Dict]:
@@ -371,10 +435,53 @@ class UnifiedDatabase:
                 params.append(project_type)
             
             query += " ORDER BY last_accessed DESC"
-            
+
             cur.execute(query, params)
-            return [dict(row) for row in cur.fetchall()]
-    
+            projects = []
+            for row in cur.fetchall():
+                project_dict = dict(row)
+                # Parse metadata_json if present
+                if 'metadata_json' in project_dict and project_dict['metadata_json']:
+                    try:
+                        project_dict['metadata'] = json.loads(project_dict['metadata_json'])
+                    except (json.JSONDecodeError, TypeError):
+                        project_dict['metadata'] = {}
+                else:
+                    project_dict['metadata'] = {}
+                projects.append(project_dict)
+            return projects
+
+    def delete_project(self, project_id: str):
+        """
+        Elimina un proyecto y todos sus datos relacionados
+
+        Args:
+            project_id: ID del proyecto a eliminar
+        """
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+
+            # Verificar que el proyecto existe
+            cur.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+            if not cur.fetchone():
+                raise ValueError(f"Project not found: {project_id}")
+
+            # SQLite con ON DELETE CASCADE eliminará automáticamente:
+            # - files
+            # - documents
+            # - chunks
+            # - conversations
+            # - messages
+            # - analysis_results
+            # - project_notes
+            # - feedback (con SET NULL)
+            # - api_usage (con SET NULL)
+            # - metrics (con SET NULL)
+
+            cur.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+
+            logger.info(f"Project deleted [project_id={project_id}]")
+
     # ==========================================
     # ARCHIVOS
     # ==========================================
@@ -400,19 +507,23 @@ class UnifiedDatabase:
             """, (project_id, filename, file_path, file_type, file_hash, file_size, 
                   chunk_count, json.dumps(metadata or {})))
             
-            logger.debug(f"Archivo registrado: {filename}", project_id=project_id)
+            logger.debug(f"Archivo registrado: {filename} [project_id={project_id}]")
     
     def get_project_files(self, project_id: str) -> List[Dict]:
         """Lista archivos de un proyecto (F1 Architecture)"""
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("""
-                SELECT * FROM files 
-                WHERE project_id = ? 
+                SELECT * FROM files
+                WHERE project_id = ?
                 ORDER BY indexed_at DESC
             """, (project_id,))
-            
+
             return [dict(row) for row in cur.fetchall()]
+
+    def get_files(self, project_id: str) -> List[Dict]:
+        """Alias for get_project_files for UI compatibility"""
+        return self.get_project_files(project_id)
     
     def file_is_indexed(self, project_id: str, file_hash: str) -> bool:
         """Verifica si un archivo ya está indexado (F1 Architecture)"""
@@ -462,7 +573,7 @@ class UnifiedDatabase:
                     msg.get('tokens_out', 0)
                 ))
             
-            logger.debug(f"Conversación guardada", session_id=session_id, messages=len(messages))
+            logger.debug(f"Conversación guardada [session_id={session_id}, messages={len(messages)}]")
     
     def load_conversation(self, project_id: str, session_id: str) -> Optional[List[Dict]]:
         """Carga una conversación (F1 Architecture compatible)"""
@@ -511,9 +622,27 @@ class UnifiedDatabase:
                 ORDER BY updated_at DESC
                 LIMIT ?
             """, (project_id, limit))
-            
+
             return [dict(row) for row in cur.fetchall()]
-    
+
+    def delete_conversation(self, conversation_id: int):
+        """Elimina una conversación"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+            logger.info(f"Conversation deleted [id={conversation_id}]")
+
+    def update_conversation_title(self, conversation_id: int, title: str):
+        """Actualiza el título de una conversación"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE conversations
+                SET title = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (title, conversation_id))
+            logger.info(f"Conversation title updated [id={conversation_id}, title={title}]")
+
     # ==========================================
     # ANÁLISIS
     # ==========================================
@@ -530,7 +659,7 @@ class UnifiedDatabase:
             """, (project_id, analysis_type, query, json.dumps(results), 
                   confidence, model_used, json.dumps(metadata or {})))
             
-            logger.debug(f"Análisis guardado", type=analysis_type, confidence=confidence)
+            logger.debug(f"Análisis guardado [type={analysis_type}, confidence={confidence}]")
     
     def get_recent_analyses(self, project_id: str, analysis_type: str = None, limit: int = 10) -> List[Dict]:
         """Obtiene análisis recientes"""
@@ -585,7 +714,191 @@ class UnifiedDatabase:
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("DELETE FROM project_notes WHERE id = ?", (note_id,))
-    
+
+    # ==========================================
+    # FEEDBACK (Memory Manager)
+    # ==========================================
+
+    def save_feedback(
+        self,
+        project_id: str,
+        session_id: str,
+        query: str,
+        response: str,
+        rating: int,
+        feedback_text: str = None,
+        sources: str = None,
+        confidence: float = None
+    ) -> int:
+        """
+        Guarda feedback del usuario sobre una respuesta.
+
+        Args:
+            project_id: ID del proyecto
+            session_id: ID de la sesión
+            query: Pregunta del usuario
+            response: Respuesta del asistente
+            rating: 1 (útil), -1 (no útil), 0 (neutral)
+            feedback_text: Texto adicional de feedback
+            sources: Fuentes usadas
+            confidence: Nivel de confianza
+
+        Returns:
+            ID del feedback guardado
+        """
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+
+            # Migrate table if needed (add new columns)
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN session_id TEXT")
+            except:
+                pass  # Column already exists
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN response TEXT")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN rating_int INTEGER")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN feedback_text TEXT")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN sources TEXT")
+            except:
+                pass
+
+            try:
+                cur.execute("ALTER TABLE feedback ADD COLUMN confidence REAL")
+            except:
+                pass
+
+            # Convert rating int to old format for backwards compatibility
+            rating_text = 'up' if rating == 1 else 'down' if rating == -1 else 'neutral'
+
+            # Insert feedback
+            cur.execute("""
+                INSERT INTO feedback
+                (project_id, session_id, query, answer, response, rating, rating_int,
+                 feedback_text, sources, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (project_id, session_id, query, response, response, rating_text,
+                  rating, feedback_text, sources, confidence))
+
+            feedback_id = cur.lastrowid
+            logger.debug(f"Feedback guardado [id={feedback_id}, rating={rating}]")
+            return feedback_id
+
+    def get_feedback(
+        self,
+        project_id: str,
+        limit: int = 50,
+        rating: int = None
+    ) -> List[Dict]:
+        """
+        Obtiene feedback del proyecto.
+
+        Args:
+            project_id: ID del proyecto
+            limit: Número máximo de resultados
+            rating: Filtrar por rating (1, -1, 0) o None para todos
+
+        Returns:
+            Lista de entradas de feedback
+        """
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+
+            if rating is not None:
+                cur.execute("""
+                    SELECT * FROM feedback
+                    WHERE project_id = ? AND rating_int = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (project_id, rating, limit))
+            else:
+                cur.execute("""
+                    SELECT * FROM feedback
+                    WHERE project_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (project_id, limit))
+
+            results = []
+            for row in cur.fetchall():
+                entry = dict(row)
+                # Use response field, fall back to answer if response doesn't exist
+                if 'response' not in entry or entry['response'] is None:
+                    entry['response'] = entry.get('answer', '')
+                # Normalize timestamp field
+                entry['timestamp'] = entry.get('created_at')
+                results.append(entry)
+
+            return results
+
+    def delete_feedback(self, feedback_id: int):
+        """Elimina una entrada de feedback"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM feedback WHERE id = ?", (feedback_id,))
+            logger.debug(f"Feedback eliminado [id={feedback_id}]")
+
+    def get_feedback_stats(self, project_id: str) -> Dict:
+        """Obtiene estadísticas de feedback del proyecto"""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+
+            stats = {
+                'total': 0,
+                'helpful': 0,
+                'not_helpful': 0,
+                'neutral': 0
+            }
+
+            # Count total
+            cur.execute("SELECT COUNT(*) as count FROM feedback WHERE project_id = ?", (project_id,))
+            stats['total'] = cur.fetchone()['count']
+
+            # Count by rating (try new column first, fall back to old)
+            try:
+                cur.execute("""
+                    SELECT rating_int, COUNT(*) as count
+                    FROM feedback
+                    WHERE project_id = ? AND rating_int IS NOT NULL
+                    GROUP BY rating_int
+                """, (project_id,))
+
+                for row in cur.fetchall():
+                    if row['rating_int'] == 1:
+                        stats['helpful'] = row['count']
+                    elif row['rating_int'] == -1:
+                        stats['not_helpful'] = row['count']
+                    elif row['rating_int'] == 0:
+                        stats['neutral'] = row['count']
+            except:
+                # Fall back to old rating column
+                cur.execute("""
+                    SELECT rating, COUNT(*) as count
+                    FROM feedback
+                    WHERE project_id = ?
+                    GROUP BY rating
+                """, (project_id,))
+
+                for row in cur.fetchall():
+                    if row['rating'] == 'up':
+                        stats['helpful'] = row['count']
+                    elif row['rating'] == 'down':
+                        stats['not_helpful'] = row['count']
+
+            return stats
+
     # ==========================================
     # UTILIDADES
     # ==========================================
@@ -646,11 +959,8 @@ class UnifiedDatabase:
             ))
             
             logger.debug(
-                f"API usage recorded",
-                provider=provider,
-                model=model,
-                tokens=total_tokens,
-                cost=round(cost_estimated, 4)
+                f"API usage recorded [provider={provider}, model={model}, "
+                f"tokens={total_tokens}, cost=${round(cost_estimated, 4)}]"
             )
     
     def get_monthly_usage(self, year: int = None, month: int = None) -> Dict:
@@ -769,37 +1079,6 @@ class UnifiedDatabase:
             
             return [dict(row) for row in cur.fetchall()]
 
-    # ==================== ANALYTICS QUERIES ====================
-    # Methods for usage monitoring and cost tracking
-    
-    def get_daily_usage(self, days: int = 30) -> List[Dict]:
-        """
-        Get daily API usage for last N days
-        
-        Args:
-            days: Number of days to retrieve
-        
-        Returns:
-            List of dicts with day, tokens, cost, requests
-        """
-        with self._get_connection() as conn:
-            cur = conn.cursor()
-            
-            cur.execute("""
-                SELECT 
-                    DATE(timestamp) as day,
-                    SUM(total_tokens) as tokens,
-                    SUM(cost_estimated) as cost,
-                    COUNT(*) as requests
-                FROM api_usage
-                WHERE timestamp >= datetime('now', ? || ' days')
-                GROUP BY DATE(timestamp)
-                ORDER BY day DESC
-            """, (f'-{days}',))
-            
-            rows = cur.fetchall()
-            return [dict(row) for row in rows]
-    
     def get_usage_by_project(
         self,
         start_date: str = None,
@@ -1009,8 +1288,12 @@ class UnifiedDatabase:
             Dict with alert status and details
         """
         summary = self.get_monthly_summary()
-        total_cost = summary['total_cost']
-        
+        total_cost = summary.get('total_cost', 0.0) if summary else 0.0
+
+        # Handle None values
+        if total_cost is None:
+            total_cost = 0.0
+
         percentage_used = (total_cost / monthly_budget * 100) if monthly_budget > 0 else 0
         
         alert = {
