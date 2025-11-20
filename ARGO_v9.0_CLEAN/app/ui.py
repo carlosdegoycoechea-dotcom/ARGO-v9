@@ -1305,6 +1305,59 @@ with tab4:
         st.error(f"Error loading conversations: {e}")
         logger.error(f"Tab 4 conversation error: {e}", exc_info=True)
 
+    # ==================== NOTES SECTION ====================
+    st.divider()
+    st.subheader("Project Notes")
+    st.caption("Save important information and insights")
+
+    # Display existing notes
+    try:
+        notes = unified_db.get_notes(project_id=project['id'], limit=20)
+        if notes:
+            st.write(f"**{len(notes)} saved note(s)**")
+            for note in notes:
+                with st.expander(f"{note['title']}"):
+                    st.caption(f"Created: {note.get('created_at', 'N/A')}")
+                    if note.get('tags'):
+                        st.caption(f"Tags: {note['tags']}")
+                    st.markdown(note['content'])
+                    if st.button("Delete Note", key=f"del_note_tab4_{note['id']}"):
+                        try:
+                            unified_db.delete_note(note['id'])
+                            st.success("Note deleted")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error deleting note: {e}")
+        else:
+            st.info("No notes yet. Create your first note below!")
+    except Exception as e:
+        logger.warning(f"Could not load notes: {e}")
+        st.warning(f"Could not load notes: {e}")
+
+    # Create new note
+    with st.expander("Create New Note"):
+        with st.form("new_note_form_tab4"):
+            note_title = st.text_input("Title", placeholder="Note title")
+            note_content = st.text_area("Content", placeholder="Note content", height=150)
+            note_tags = st.text_input("Tags", placeholder="Optional tags (comma-separated)")
+
+            if st.form_submit_button("Save Note", use_container_width=True):
+                if note_title and note_content:
+                    try:
+                        unified_db.save_note(
+                            project_id=project['id'],
+                            title=note_title,
+                            content=note_content,
+                            tags=note_tags
+                        )
+                        st.success("Note saved successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error saving note: {e}")
+                        logger.error(f"Note save error: {e}", exc_info=True)
+                else:
+                    st.warning("Please provide both title and content")
+
 # ==================== TAB 5: PROJECT ====================
 with tab5:
     st.subheader(f"{project['name']} - Project Settings")
