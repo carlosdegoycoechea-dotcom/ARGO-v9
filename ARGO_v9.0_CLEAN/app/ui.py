@@ -1574,7 +1574,10 @@ with tab5:
             try:
                 # Import and run drive sync
                 from core.drive_manager import DriveManager
-                drive_manager = DriveManager(credentials_path='config/google_credentials.json')
+                drive_manager = DriveManager(
+                    credentials_path='config/google_credentials.json',
+                    db_manager=unified_db
+                )
 
                 st.info("Starting synchronization...")
 
