@@ -184,7 +184,7 @@ class ARGOEvaluator:
                 }
             ]
             
-            response = model_router.run(
+            response = model_router.route(
                 task_type="chat",
                 project_id=project_id,
                 messages=messages

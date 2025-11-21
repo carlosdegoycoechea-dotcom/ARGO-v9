@@ -12,8 +12,8 @@ langchain-openai==0.0.5
 langchain-anthropic==0.1.0
 langchain-chroma==0.1.0
 
-# Vector store
-chromadb==0.5.20
+# Vector store (compatible with langchain-chroma 0.1.0)
+chromadb==0.4.24
 
 # Document processing
 PyPDF2==3.0.1

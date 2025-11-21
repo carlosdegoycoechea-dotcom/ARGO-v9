@@ -107,7 +107,7 @@ Write as if it were an excerpt from an actual project document.
 Hypothetical answer:"""
         
         try:
-            response = self.router.run(
+            response = self.router.route(
                 task_type="summary",
                 project_id=self.project_id,
                 messages=[{"role": "user", "content": prompt}]
@@ -433,7 +433,7 @@ Rank the following documents by relevance. Return ONLY a comma-separated list of
 Ranking (e.g., "3,1,5,2,4"):"""
         
         try:
-            response = self.router.run(
+            response = self.router.route(
                 task_type="analysis",
                 project_id=self.project_id,
                 messages=[{"role": "user", "content": prompt}]
