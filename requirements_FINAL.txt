@@ -1,0 +1,55 @@
+# ARGO v9.0 Clean - Requirements
+
+# Core dependencies
+python-dotenv==1.0.0
+pyyaml==6.0.1
+
+# LLM providers
+openai==1.55.3
+httpx==0.28.1
+anthropic==0.39.0
+langchain>=0.1.7,<0.2.0
+langchain-core>=0.1.33,<0.2.0
+langchain-openai>=0.0.5,<0.2.0
+langchain-anthropic>=0.1.0,<0.2.0
+chromadb==0.4.22
+
+# Document processing
+PyPDF2==3.0.1
+python-docx==1.1.2
+openpyxl==3.1.5
+pandas==2.2.3
+
+# PowerPoint support
+python-pptx==0.6.23
+
+# Image OCR support (optional)
+Pillow==10.1.0
+pytesseract==0.3.10
+
+# Legacy DOC support (optional - requires system antiword or textract)
+# textract==1.6.5
+
+# XER/P6 processing (optional)
+# PyP6XER - install manually if needed
+
+# UI
+streamlit==1.40.1
+
+# Testing
+pytest==8.3.4
+pytest-cov==6.0.0
+
+# Google Drive (optional)
+google-api-python-client==2.154.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.1
+
+# Web search
+duckduckgo-search==6.3.5
+
+# Utilities
+requests==2.32.3
+numpy>=1.26.0,<2.0.0
+pyperclip==1.9.0
+plotly==5.24.1
