@@ -5,7 +5,8 @@ python-dotenv==1.0.0
 pyyaml==6.0.1
 
 # LLM providers
-openai==1.12.0
+openai==1.55.3
+httpx==0.28.1
 anthropic==0.39.0
 langchain==0.1.0
 langchain-anthropic==0.1.0
