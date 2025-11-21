@@ -43,34 +43,41 @@ def render_analytics_panel(unified_db, config):
     
     # Summary metrics
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
+        total_cost = monthly.get('total_cost') or 0.0
         st.metric(
             "Monthly Cost",
-            f"${monthly['total_cost']:.2f}",
+            f"${total_cost:.2f}",
             f"of ${monthly_budget:.2f}"
         )
-    
+
     with col2:
+        total_tokens = monthly.get('total_tokens') or 0
+        total_requests = monthly.get('total_requests') or 0
         st.metric(
             "Total Tokens",
-            f"{monthly['total_tokens']:,}",
-            f"{monthly['total_requests']} requests"
+            f"{total_tokens:,}",
+            f"{total_requests} requests"
         )
-    
+
     with col3:
+        daily_avg_cost = monthly.get('daily_avg_cost') or 0.0
+        daily_avg_tokens = monthly.get('daily_avg_tokens') or 0
         st.metric(
             "Daily Average",
-            f"${monthly['daily_avg_cost']:.2f}",
-            f"{int(monthly['daily_avg_tokens']):,} tokens"
+            f"${daily_avg_cost:.2f}",
+            f"{int(daily_avg_tokens):,} tokens"
         )
-    
+
     with col4:
-        remaining_pct = 100 - budget_alert['percentage_used']
+        percentage_used = budget_alert.get('percentage_used') or 0.0
+        remaining = budget_alert.get('remaining', monthly_budget)
+        remaining_pct = 100 - percentage_used
         st.metric(
             "Budget Remaining",
             f"{remaining_pct:.1f}%",
-            f"${budget_alert['remaining']:.2f}"
+            f"${remaining:.2f}"
         )
     
     st.divider()
