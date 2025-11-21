@@ -311,34 +311,34 @@ class ARGOBootstrap:
     
     def _init_vectorstore(self, base_path: Path, collection_name: str):
         """
-        Initialize Chroma vectorstore
-        
+        Initialize ChromaDB vectorstore (native implementation)
+
         Args:
             base_path: Base path for vectors
             collection_name: Name of collection
-        
+
         Returns:
-            Chroma vectorstore
+            ChromaDBVectorStore instance
         """
-        from langchain_chroma import Chroma
+        from core.chromadb_wrapper import ChromaDBVectorStore
         from langchain_openai import OpenAIEmbeddings
-        
+
         embeddings_model = self.config.get("apis.openai.models.embeddings", "text-embedding-3-small")
-        
+
         embeddings = OpenAIEmbeddings(
             model=embeddings_model,
             api_key=os.getenv("OPENAI_API_KEY")
         )
-        
+
         vectors_path = base_path / "vectors"
         vectors_path.mkdir(parents=True, exist_ok=True)
-        
-        vectorstore = Chroma(
+
+        vectorstore = ChromaDBVectorStore(
             persist_directory=str(vectors_path),
             embedding_function=embeddings,
             collection_name=collection_name
         )
-        
+
         return vectorstore
     
     def _init_rag_engine(self, project_vectorstore, library_vectorstore, project: Dict):
