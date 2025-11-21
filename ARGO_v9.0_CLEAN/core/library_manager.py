@@ -50,7 +50,7 @@ class LibraryManager:
         # Asegurar que existe el proyecto biblioteca
         self._ensure_library_project()
         
-        logger.info(f"LibraryManager inicializado", path=str(self.library_path))
+        logger.info(f"LibraryManager inicializado - path: {str(self.library_path)}")
     
     def _ensure_library_project(self):
         """Asegura que el proyecto LIBRARY existe"""

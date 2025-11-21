@@ -176,7 +176,7 @@ class OpenAIProvider(BaseProvider):
             )
             
         except Exception as e:
-            logger.error(f"Error en OpenAI generate", model=model, error=str(e))
+            logger.error(f"Error en OpenAI generate - model: {model}, error: {str(e)}")
             raise
     
     def _format_messages(
@@ -283,7 +283,7 @@ class AnthropicProvider(BaseProvider):
             )
             
         except Exception as e:
-            logger.error(f"Error en Anthropic generate", model=model, error=str(e))
+            logger.error(f"Error en Anthropic generate - model: {model}, error: {str(e)}")
             raise
     
     def _format_messages(
