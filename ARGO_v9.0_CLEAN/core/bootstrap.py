@@ -321,11 +321,11 @@ class ARGOBootstrap:
             ChromaDBVectorStore instance
         """
         from core.chromadb_wrapper import ChromaDBVectorStore
-        from langchain_openai import OpenAIEmbeddings
+        from core.openai_embeddings import NativeOpenAIEmbeddings
 
         embeddings_model = self.config.get("apis.openai.models.embeddings", "text-embedding-3-small")
 
-        embeddings = OpenAIEmbeddings(
+        embeddings = NativeOpenAIEmbeddings(
             model=embeddings_model,
             api_key=os.getenv("OPENAI_API_KEY")
         )
@@ -356,10 +356,10 @@ class ARGOBootstrap:
         from core.rag_engine import UnifiedRAGEngine
         
         # Get embeddings
-        from langchain_openai import OpenAIEmbeddings
+        from core.openai_embeddings import NativeOpenAIEmbeddings
         embeddings_model = self.config.get("apis.openai.models.embeddings")
-        
-        embeddings = OpenAIEmbeddings(
+
+        embeddings = NativeOpenAIEmbeddings(
             model=embeddings_model,
             api_key=os.getenv("OPENAI_API_KEY")
         )

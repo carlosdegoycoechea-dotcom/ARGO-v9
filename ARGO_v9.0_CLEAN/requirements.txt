@@ -4,11 +4,10 @@
 python-dotenv==1.0.0
 pyyaml==6.0.1
 
-# LLM providers (compatible stable versions from early 2024)
+# LLM providers
 openai==1.12.0
 anthropic==0.39.0
 langchain==0.1.0
-langchain-openai==0.0.5
 langchain-anthropic==0.1.0
 chromadb==0.4.22
 
