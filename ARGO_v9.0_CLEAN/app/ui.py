@@ -1570,7 +1570,7 @@ with tab5:
 
     # Force sync button
     if drive_enabled and current_drive_id:
-        if st.button("Force Synchronization", use_container_width=True):
+        if st.button("🔄 Force Synchronization", use_container_width=True):
             try:
                 # Import and run drive sync
                 from core.drive_manager import DriveManager
@@ -1579,13 +1579,60 @@ with tab5:
                     db_manager=unified_db
                 )
 
-                st.info("Starting synchronization...")
+                with st.spinner("Syncing files from Google Drive..."):
+                    # Sync files
+                    files = drive_manager.sync_folder(
+                        folder_id=current_drive_id,
+                        project_id=project['id']
+                    )
 
-                # Sync files
-                files = drive_manager.sync_folder(
-                    folder_id=current_drive_id,
-                    project_id=project['id']
-                )
+                st.success(f"✓ Downloaded {len(files)} files from Drive")
+
+                # Process and index each file
+                processed_count = 0
+                with st.spinner("Processing and indexing files..."):
+                    for file_info in files:
+                        try:
+                            file_path = file_info['path']
+
+                            # Get file info
+                            from tools.extractors import extract_and_chunk, get_file_info
+                            info = get_file_info(file_path)
+
+                            # Extract and chunk
+                            chunks = extract_and_chunk(
+                                file_path=file_path,
+                                file_type=info['extension'],
+                                metadata={
+                                    'project_id': project['id'],
+                                    'source': file_info['name'],
+                                    'drive_file_id': file_info.get('drive_id', ''),
+                                    'synced_at': datetime.now().isoformat()
+                                }
+                            )
+
+                            # Index chunks in vectorstore
+                            if chunks:
+                                texts = [chunk['content'] for chunk in chunks]
+                                metadatas = [chunk['metadata'] for chunk in chunks]
+                                vectorstore.add_texts(texts=texts, metadatas=metadatas)
+
+                                # Update registration with chunk count
+                                unified_db.register_file(
+                                    project_id=project['id'],
+                                    filename=file_info['name'],
+                                    file_path=file_path,
+                                    file_type=info['extension'],
+                                    file_hash=info['file_hash'],
+                                    file_size=info['size_bytes'],
+                                    chunk_count=len(chunks)
+                                )
+
+                                processed_count += 1
+                                logger.info(f"Processed and indexed: {file_info['name']} ({len(chunks)} chunks)")
+
+                        except Exception as file_error:
+                            logger.warning(f"Could not process {file_info['name']}: {file_error}")
 
                 # Update metadata
                 new_metadata = metadata.copy()
@@ -1593,7 +1640,7 @@ with tab5:
                 new_metadata['last_sync'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 unified_db.update_project(project_id=project['id'], metadata=new_metadata)
 
-                st.success(f"Synchronized {len(files)} files successfully!")
+                st.success(f"✓ Synchronized and indexed {processed_count}/{len(files)} files successfully!")
                 st.rerun()
             except ImportError:
                 st.warning("Drive sync not available - DriveManager module not found")

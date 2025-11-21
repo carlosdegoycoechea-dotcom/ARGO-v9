@@ -116,14 +116,14 @@ class DriveManager:
                         try:
                             file_ext = target_file.suffix.lower().strip('.')
 
-                            self.db.add_file(
+                            self.db.register_file(
                                 project_id=project_id,
                                 filename=filename,
                                 file_path=str(target_file),
                                 file_type=file_ext,
                                 file_hash="",  # Could compute hash if needed
                                 file_size=int(drive_file.get('size', 0)),
-                                status="pending",
+                                chunk_count=0,  # Not chunked yet
                                 metadata={
                                     "drive_folder_id": folder_id,
                                     "drive_file_id": file_id,
